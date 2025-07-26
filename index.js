@@ -1,6 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 const { google } = require('googleapis');
 require('dotenv').config();
 
@@ -9,7 +11,23 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'), false);
+    }
+  }
+});
+
 const SCOPES = ['https://www.googleapis.com/auth/tasks'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 const MAX_TASK_LENGTH = 8192; // Google Tasks character limit
 
 function getOAuth2Client() {
@@ -88,6 +106,111 @@ app.post('/add-task', async (req, res) => {
     res.json({ success: false, message: `Error: ${err.message}` });
   }
 });
+
+// Handle transcript processing
+app.post('/process-transcript', upload.single('transcript'), async (req, res) => {
+  const userTokens = req.cookies && req.cookies.userTokens;
+  
+  if (!userTokens) {
+    return res.json({ success: false, message: 'Not authenticated. Please sign in again.' });
+  }
+
+  if (!req.file) {
+    return res.json({ success: false, message: 'No file uploaded' });
+  }
+
+  try {
+    // Parse PDF content
+    const pdfData = await pdfParse(req.file.buffer);
+    const transcriptText = pdfData.text;
+    
+    console.log('PDF parsed successfully, length:', transcriptText.length);
+    
+    // Extract action items (simple regex-based approach for MVP)
+    const actionItems = extractActionItems(transcriptText);
+    
+    if (actionItems.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'Transcript processed successfully, but no action items were found.' 
+      });
+    }
+    
+    // Create tasks for each action item
+    const oAuth2Client = getOAuth2Client();
+    oAuth2Client.setCredentials(JSON.parse(userTokens));
+    
+    const tasks = google.tasks({ version: 'v1', auth: oAuth2Client });
+    const createdTasks = [];
+    
+    for (const item of actionItems) {
+      try {
+        await tasks.tasks.insert({
+          tasklist: '@default',
+          requestBody: { title: item },
+        });
+        createdTasks.push(item);
+      } catch (err) {
+        console.error('Error creating task:', err.message);
+      }
+    }
+    
+    if (createdTasks.length > 0) {
+      res.json({ 
+        success: true, 
+        message: `Successfully created ${createdTasks.length} task(s) from transcript.` 
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: 'Failed to create any tasks. Please try again.' 
+      });
+    }
+    
+  } catch (err) {
+    console.error('Error processing transcript:', err);
+    res.json({ success: false, message: `Error processing transcript: ${err.message}` });
+  }
+});
+
+// Function to extract action items from transcript text
+function extractActionItems(text) {
+  const actionItems = [];
+  
+  // Common action item patterns
+  const patterns = [
+    // "I will..." or "I'll..."
+    /\bI\s+(?:will|'ll)\s+([^.!?]+[.!?])/gi,
+    // "I need to..." or "I have to..."
+    /\bI\s+(?:need\s+to|have\s+to)\s+([^.!?]+[.!?])/gi,
+    // "I should..." or "I must..."
+    /\bI\s+(?:should|must)\s+([^.!?]+[.!?])/gi,
+    // "Action item: ..." or "TODO: ..."
+    /(?:action\s+item|todo):\s*([^.!?]+[.!?])/gi,
+    // "Next steps: ..."
+    /next\s+steps?:\s*([^.!?]+[.!?])/gi,
+    // "Follow up: ..."
+    /follow\s+up:\s*([^.!?]+[.!?])/gi
+  ];
+  
+  patterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        // Clean up the extracted text
+        let cleanItem = match.replace(/^(?:I\s+(?:will|'ll|need\s+to|have\s+to|should|must)\s+|(?:action\s+item|todo):\s*|next\s+steps?:\s*|follow\s+up:\s*)/i, '');
+        cleanItem = cleanItem.trim();
+        
+        if (cleanItem.length > 10 && cleanItem.length < 200) {
+          actionItems.push(cleanItem);
+        }
+      });
+    }
+  });
+  
+  // Remove duplicates
+  return [...new Set(actionItems)];
+}
 
 // Handle logout
 app.post('/logout', (req, res) => {
@@ -294,7 +417,7 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Google Tasks MVP</title>
+      <title>Upload meeting transcript - Google Tasks MVP</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .container { max-width: 500px; margin: 0 auto; }
@@ -331,20 +454,30 @@ app.get('/', (req, res) => {
         .loading { opacity: 0.6; pointer-events: none; }
       </style>
       <script>
-        function updateCharCount() {
-          const textarea = document.getElementById('task');
-          const charCount = document.getElementById('charCount');
-          const count = textarea.value.length;
-          const maxLength = ${MAX_TASK_LENGTH};
+        function updateFileInfo() {
+          const fileInput = document.getElementById('transcriptFile');
+          const fileInfo = document.getElementById('fileInfo');
+          const fileName = document.getElementById('fileName');
+          const fileSize = document.getElementById('fileSize');
+          const submitBtn = document.getElementById('submitBtn');
           
-          charCount.textContent = count + ' / ' + maxLength + ' characters';
-          
-          if (count > maxLength) {
-            charCount.className = 'char-count error';
-          } else if (count > maxLength * 0.9) {
-            charCount.className = 'char-count warning';
+          if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const maxSize = ${MAX_FILE_SIZE};
+            
+            fileName.textContent = file.name;
+            fileSize.textContent = \`Size: \${(file.size / 1024 / 1024).toFixed(2)} MB\`;
+            fileInfo.style.display = 'block';
+            
+            if (file.size > maxSize) {
+              showToast(\`File too large (\${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum 10MB allowed.\`, 'error');
+              submitBtn.disabled = true;
+            } else {
+              submitBtn.disabled = false;
+            }
           } else {
-            charCount.className = 'char-count';
+            fileInfo.style.display = 'none';
+            submitBtn.disabled = true;
           }
         }
         
@@ -369,48 +502,45 @@ app.get('/', (req, res) => {
           }, 3000);
         }
         
-        function submitTask() {
-          const textarea = document.getElementById('task');
+        function processTranscript() {
+          const fileInput = document.getElementById('transcriptFile');
           const submitBtn = document.getElementById('submitBtn');
-          const task = textarea.value.trim();
           
-          if (!task) {
-            showToast('Please enter a task', 'error');
+          if (!fileInput.files.length) {
+            showToast('Please select a PDF file', 'error');
             return;
           }
           
-          if (task.length > ${MAX_TASK_LENGTH}) {
-            showToast(\`Task is too long (\${task.length} characters). Maximum ${MAX_TASK_LENGTH} characters allowed.\`, 'error');
+          const file = fileInput.files[0];
+          const maxSize = ${MAX_FILE_SIZE};
+          
+          if (file.size > maxSize) {
+            showToast(\`File too large (\${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum 10MB allowed.\`, 'error');
             return;
           }
           
           // Show loading state
-          submitBtn.textContent = 'Adding...';
+          submitBtn.textContent = 'Processing...';
           submitBtn.disabled = true;
-          textarea.disabled = true;
           
-          // Submit task via AJAX
-          fetch('/add-task', {
+          // Create FormData for file upload
+          const formData = new FormData();
+          formData.append('transcript', file);
+          
+          // Submit transcript via AJAX
+          fetch('/process-transcript', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: \`task=\${encodeURIComponent(task)}\`
+            body: formData
           })
           .then(response => response.json())
           .then(data => {
             if (data.success) {
               showToast(data.message, 'success');
-              textarea.value = '';
-              updateCharCount();
+              // Reset file input
+              fileInput.value = '';
+              document.getElementById('fileInfo').style.display = 'none';
             } else {
               showToast(data.message, 'error');
-              // If authentication error, redirect to home page
-              if (data.message.includes('Not authenticated')) {
-                setTimeout(() => {
-                  window.location.href = '/';
-                }, 2000);
-              }
             }
           })
           .catch(error => {
@@ -418,47 +548,47 @@ app.get('/', (req, res) => {
           })
           .finally(() => {
             // Reset loading state
-            submitBtn.textContent = 'Add Task';
+            submitBtn.textContent = 'Process';
             submitBtn.disabled = false;
-            textarea.disabled = false;
-            textarea.focus();
           });
         }
         
-        function handleKeyPress(event) {
-          if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            submitTask();
-          }
-        }
-        
         window.onload = function() { 
-          updateCharCount();
-          document.getElementById('task').focus();
+          // Focus is not needed for file upload
         };
       </script>
     </head>
     <body>
               <div class="container">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-            <h2>Google Tasks MVP</h2>
-            <a href="/account" class="btn" style="text-decoration: none; display: inline-block; background: #4285f4; color: white; padding: 8px 16px; font-size: 14px; border-radius: 4px;">Account</a>
+            <h2>Upload meeting transcript - Google Tasks MVP</h2>
+            <a href="/account" style="text-decoration: none; color: #4285f4; font-size: 14px; font-weight: 500;">Account</a>
           </div>
           
-          <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
-          <form onsubmit="event.preventDefault(); submitTask();">
-            <textarea 
-              id="task" 
-              name="task" 
-              placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters) - Press Enter to add" 
-              required 
-              oninput="updateCharCount()"
-              onkeypress="handleKeyPress(event)"
-              maxlength="${MAX_TASK_LENGTH}"
-            ></textarea>
-            <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
-            <button type="submit" id="submitBtn">Add Task</button>
-          </form>
+                  <div class="limit-info">Upload a PDF meeting transcript (max 10MB). The tool will identify action items assigned to you and create tasks.</div>
+        <form onsubmit="event.preventDefault(); processTranscript();" enctype="multipart/form-data">
+          <div style="border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 8px; margin: 20px 0; background: #f9f9f9;">
+            <input 
+              type="file" 
+              id="transcriptFile" 
+              name="transcript" 
+              accept=".pdf"
+              style="display: none;"
+              onchange="updateFileInfo()"
+            />
+            <div id="uploadArea" onclick="document.getElementById('transcriptFile').click();" style="cursor: pointer;">
+              <div style="font-size: 48px; color: #666; margin-bottom: 10px;">📄</div>
+              <div style="font-size: 18px; color: #333; margin-bottom: 10px;">Click to upload PDF transcript</div>
+              <div style="font-size: 14px; color: #666;">Maximum file size: 10MB</div>
+            </div>
+            <div id="fileInfo" style="display: none; margin-top: 20px; padding: 15px; background: white; border-radius: 4px; border: 1px solid #ddd;">
+              <div style="font-weight: bold; margin-bottom: 5px;">Selected file:</div>
+              <div id="fileName" style="color: #4285f4;"></div>
+              <div id="fileSize" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
+            </div>
+          </div>
+          <button type="submit" id="submitBtn" disabled>Process</button>
+        </form>
         </div>
     </body>
     </html>
