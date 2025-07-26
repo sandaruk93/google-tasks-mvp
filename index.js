@@ -132,33 +132,64 @@ app.post('/process-transcript', upload.single('transcript'), async (req, res) =>
     if (actionItems.length === 0) {
       return res.json({ 
         success: true, 
-        message: 'Transcript processed successfully, but no action items were found.' 
+        message: 'Transcript processed successfully, but no action items were found.',
+        tasks: []
       });
     }
     
-    // Create tasks for each action item
+    // Return extracted tasks for user review
+    res.json({ 
+      success: true, 
+      message: `Found ${actionItems.length} potential action items. Please review and select the ones you want to add.`,
+      tasks: actionItems
+    });
+    
+  } catch (err) {
+    console.error('Error processing transcript:', err);
+    res.json({ success: false, message: `Error processing transcript: ${err.message}` });
+  }
+});
+
+// Handle task confirmation and creation
+app.post('/confirm-tasks', async (req, res) => {
+  const userTokens = req.cookies && req.cookies.userTokens;
+  
+  if (!userTokens) {
+    return res.json({ success: false, message: 'Not authenticated. Please sign in again.' });
+  }
+
+  const { tasks } = req.body;
+  
+  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.json({ success: false, message: 'No tasks provided for creation.' });
+  }
+
+  try {
+    // Create tasks for each selected item
     const oAuth2Client = getOAuth2Client();
     oAuth2Client.setCredentials(JSON.parse(userTokens));
     
-    const tasks = google.tasks({ version: 'v1', auth: oAuth2Client });
+    const tasksAPI = google.tasks({ version: 'v1', auth: oAuth2Client });
     const createdTasks = [];
     
-    for (const item of actionItems) {
-      try {
-        await tasks.tasks.insert({
-          tasklist: '@default',
-          requestBody: { title: item },
-        });
-        createdTasks.push(item);
-      } catch (err) {
-        console.error('Error creating task:', err.message);
+    for (const task of tasks) {
+      if (task.trim()) {
+        try {
+          await tasksAPI.tasks.insert({
+            tasklist: '@default',
+            requestBody: { title: task.trim() },
+          });
+          createdTasks.push(task);
+        } catch (err) {
+          console.error('Error creating task:', err.message);
+        }
       }
     }
     
     if (createdTasks.length > 0) {
       res.json({ 
         success: true, 
-        message: `Successfully created ${createdTasks.length} task(s) from transcript.` 
+        message: `Successfully created ${createdTasks.length} task(s).` 
       });
     } else {
       res.json({ 
@@ -168,8 +199,8 @@ app.post('/process-transcript', upload.single('transcript'), async (req, res) =>
     }
     
   } catch (err) {
-    console.error('Error processing transcript:', err);
-    res.json({ success: false, message: `Error processing transcript: ${err.message}` });
+    console.error('Error creating tasks:', err);
+    res.json({ success: false, message: `Error creating tasks: ${err.message}` });
   }
 });
 
@@ -536,6 +567,8 @@ app.get('/', (req, res) => {
           .then(data => {
             if (data.success) {
               showToast(data.message, 'success');
+              // Show task review section
+              displayTaskReview(data.tasks);
               // Reset file input
               fileInput.value = '';
               document.getElementById('fileInfo').style.display = 'none';
@@ -553,6 +586,131 @@ app.get('/', (req, res) => {
           });
         }
         
+        function displayTaskReview(tasks) {
+          const taskReviewSection = document.getElementById('taskReviewSection');
+          const taskList = document.getElementById('taskList');
+          const confirmBtn = document.getElementById('confirmBtn');
+          
+          if (tasks.length === 0) {
+            taskReviewSection.style.display = 'none';
+            return;
+          }
+          
+          // Clear previous tasks
+          taskList.innerHTML = '';
+          
+          // Create task items
+          tasks.forEach((task, index) => {
+            const taskItem = document.createElement('div');
+            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px; background: white;';
+            taskItem.innerHTML = \`
+              <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <input type="checkbox" id="task\${index}" checked style="margin-top: 3px;" onchange="updateConfirmButton()">
+                <div style="flex: 1;">
+                  <textarea 
+                    id="taskText\${index}" 
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 60px;"
+                    oninput="updateTaskText(\${index})"
+                  >\${task}</textarea>
+                </div>
+              </div>
+            \`;
+            taskList.appendChild(taskItem);
+          });
+          
+          // Show review section
+          taskReviewSection.style.display = 'block';
+          confirmBtn.style.display = 'inline-block';
+          
+          // Scroll to review section
+          taskReviewSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function updateTaskText(index) {
+          // This function can be used for any text editing validation if needed
+        }
+        
+        function toggleSelectAll() {
+          const checkboxes = document.querySelectorAll('#taskList input[type="checkbox"]');
+          const selectAllBtn = document.getElementById('selectAllBtn');
+          const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+          
+          checkboxes.forEach(checkbox => {
+            checkbox.checked = !allChecked;
+          });
+          
+          selectAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
+          updateConfirmButton();
+        }
+        
+        function updateConfirmButton() {
+          const checkboxes = document.querySelectorAll('#taskList input[type="checkbox"]:checked');
+          const confirmBtn = document.getElementById('confirmBtn');
+          
+          if (checkboxes.length > 0) {
+            confirmBtn.style.display = 'inline-block';
+            confirmBtn.textContent = \`Confirm (\${checkboxes.length} tasks)\`;
+          } else {
+            confirmBtn.style.display = 'none';
+          }
+        }
+        
+        function confirmTasks() {
+          const checkboxes = document.querySelectorAll('#taskList input[type="checkbox"]:checked');
+          const confirmBtn = document.getElementById('confirmBtn');
+          
+          if (checkboxes.length === 0) {
+            showToast('Please select at least one task', 'error');
+            return;
+          }
+          
+          // Collect selected tasks
+          const selectedTasks = [];
+          checkboxes.forEach(checkbox => {
+            const index = checkbox.id.replace('task', '');
+            const taskText = document.getElementById(\`taskText\${index}\`).value.trim();
+            if (taskText) {
+              selectedTasks.push(taskText);
+            }
+          });
+          
+          if (selectedTasks.length === 0) {
+            showToast('Please enter text for at least one task', 'error');
+            return;
+          }
+          
+          // Show loading state
+          confirmBtn.textContent = 'Creating Tasks...';
+          confirmBtn.disabled = true;
+          
+          // Submit selected tasks
+          fetch('/confirm-tasks', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tasks: selectedTasks })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showToast(data.message, 'success');
+              // Hide review section
+              document.getElementById('taskReviewSection').style.display = 'none';
+            } else {
+              showToast(data.message, 'error');
+            }
+          })
+          .catch(error => {
+            showToast('Network error. Please try again.', 'error');
+          })
+          .finally(() => {
+            // Reset loading state
+            confirmBtn.textContent = \`Confirm (\${selectedTasks.length} tasks)\`;
+            confirmBtn.disabled = false;
+          });
+        }
+        
         window.onload = function() { 
           // Focus is not needed for file upload
         };
@@ -565,7 +723,7 @@ app.get('/', (req, res) => {
             <a href="/account" style="text-decoration: none; color: #4285f4; font-size: 14px; font-weight: 500;">Account</a>
           </div>
           
-                  <div class="limit-info">Upload a PDF meeting transcript (max 10MB). The tool will identify action items assigned to you and create tasks.</div>
+                  <div class="limit-info">Upload a PDF meeting transcript (max 10MB). The tool will identify action items and let you review them before creating tasks.</div>
         <form onsubmit="event.preventDefault(); processTranscript();" enctype="multipart/form-data">
           <div style="border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 8px; margin: 20px 0; background: #f9f9f9;">
             <input 
@@ -589,6 +747,17 @@ app.get('/', (req, res) => {
           </div>
           <button type="submit" id="submitBtn" disabled>Process</button>
         </form>
+        
+        <!-- Task Review Section -->
+        <div id="taskReviewSection" style="display: none; margin-top: 30px;">
+          <h3>Review Extracted Action Items</h3>
+          <p style="color: #666; margin-bottom: 20px;">Select the tasks you want to add to your Google Tasks list. You can also edit the text for better accuracy.</p>
+          <div id="taskList" style="margin-bottom: 20px;"></div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" id="selectAllBtn" onclick="toggleSelectAll()" style="background: #666; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Select All</button>
+            <button type="button" id="confirmBtn" onclick="confirmTasks()" style="background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; display: none;">Confirm</button>
+          </div>
+        </div>
         </div>
     </body>
     </html>
