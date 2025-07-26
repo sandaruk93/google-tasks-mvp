@@ -565,9 +565,11 @@ app.get('/', (req, res) => {
           })
           .then(response => response.json())
           .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
               showToast(data.message, 'success');
               // Show task review section
+              console.log('Tasks to display:', data.tasks);
               displayTaskReview(data.tasks);
               // Reset file input
               fileInput.value = '';
@@ -587,11 +589,17 @@ app.get('/', (req, res) => {
         }
         
         function displayTaskReview(tasks) {
+          console.log('displayTaskReview called with tasks:', tasks);
           const taskReviewSection = document.getElementById('taskReviewSection');
           const taskList = document.getElementById('taskList');
           const confirmBtn = document.getElementById('confirmBtn');
           
+          console.log('taskReviewSection element:', taskReviewSection);
+          console.log('taskList element:', taskList);
+          console.log('confirmBtn element:', confirmBtn);
+          
           if (tasks.length === 0) {
+            console.log('No tasks to display');
             taskReviewSection.style.display = 'none';
             return;
           }
@@ -619,10 +627,13 @@ app.get('/', (req, res) => {
           });
           
           // Show review section
+          console.log('Setting taskReviewSection display to block');
           taskReviewSection.style.display = 'block';
+          console.log('Setting confirmBtn display to inline-block');
           confirmBtn.style.display = 'inline-block';
           
           // Scroll to review section
+          console.log('Scrolling to review section');
           taskReviewSection.scrollIntoView({ behavior: 'smooth' });
         }
         
