@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 10
+    },
+    "api/oauth2callback.js": {
+      "maxDuration": 10
+    },
+    "api/add-task.js": {
+      "maxDuration": 10
+    },
+    "api/logout.js": {
+      "maxDuration": 10
+    }
+  },
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/api"
+    },
+    {
+      "src": "/api",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/oauth2callback",
+      "dest": "/api/oauth2callback.js"
+    },
+    {
+      "src": "/add-task",
+      "dest": "/api/add-task.js"
+    },
+    {
+      "src": "/logout",
+      "dest": "/api/logout.js"
+    }
+  ]
+} 

@@ -61,11 +61,11 @@ module.exports = (req, res) => {
     <body>
       <div class="container">
         <h2>Google Tasks MVP</h2>
-        <form method="POST" action="/api/add-task">
+        <form method="POST" action="/add-task">
           <input name="task" placeholder="Enter a task" required />
           <button type="submit">Add Task</button>
         </form>
-        <form method="POST" action="/api/logout" style="margin-top: 20px;">
+        <form method="POST" action="/logout" style="margin-top: 20px;">
           <button type="submit" class="logout">Logout</button>
         </form>
       </div>

@@ -6,5 +6,5 @@ module.exports = (req, res) => {
   // Clear the user tokens cookie
   res.setHeader('Set-Cookie', 'userTokens=; Path=/; HttpOnly; Max-Age=0');
   
-  res.redirect('/api');
+  res.redirect('/');
 }; 

@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
     // Set cookie with tokens (in production, use secure session management)
     res.setHeader('Set-Cookie', `userTokens=${JSON.stringify(tokens)}; Path=/; HttpOnly`);
     
-    res.redirect('/api');
+    res.redirect('/');
   } catch (err) {
     res.status(500).send(`OAuth2 error: ${err.message}`);
   }

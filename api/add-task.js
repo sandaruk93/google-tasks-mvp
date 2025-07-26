@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
 
   const userTokens = req.cookies && req.cookies.userTokens;
   if (!userTokens) {
-    return res.redirect('/api');
+    return res.redirect('/');
   }
 
   const { task } = req.body;
@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
         <div class="container">
           <h2 class="success">Task Added Successfully!</h2>
           <p>Your task "${task}" has been added to your Google Tasks.</p>
-          <a href="/api">← Back to Add More Tasks</a>
+          <a href="/">← Back to Add More Tasks</a>
         </div>
       </body>
       </html>
@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
         <div class="container">
           <h2 class="error">Error Adding Task</h2>
           <p>Error: ${err.message}</p>
-          <a href="/api">← Back to Try Again</a>
+          <a href="/">← Back to Try Again</a>
         </div>
       </body>
       </html>
