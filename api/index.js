@@ -75,4 +75,5 @@ app.post('/logout', (req, res) => {
   res.redirect('/');
 });
 
+// Export the Express app for Vercel
 module.exports = app; 
