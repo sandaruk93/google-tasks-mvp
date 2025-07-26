@@ -56,8 +56,8 @@ app.post('/add-task', async (req, res) => {
   console.log('User tokens in add-task:', userTokens ? 'PRESENT' : 'MISSING');
   
   if (!userTokens) {
-    console.log('No user tokens, redirecting to /');
-    return res.redirect('/');
+    console.log('No user tokens, returning error');
+    return res.json({ success: false, message: 'Not authenticated. Please sign in again.' });
   }
 
   const { task } = req.body;
@@ -224,7 +224,7 @@ app.get('/', (req, res) => {
           }
           
           if (task.length > ${MAX_TASK_LENGTH}) {
-            showToast(\`Task is too long (${task.length} characters). Maximum ${MAX_TASK_LENGTH} characters allowed.\`, 'error');
+            showToast(\`Task is too long (\${task.length} characters). Maximum ${MAX_TASK_LENGTH} characters allowed.\`, 'error');
             return;
           }
           
@@ -249,6 +249,12 @@ app.get('/', (req, res) => {
               updateCharCount();
             } else {
               showToast(data.message, 'error');
+              // If authentication error, redirect to home page
+              if (data.message.includes('Not authenticated')) {
+                setTimeout(() => {
+                  window.location.href = '/';
+                }, 2000);
+              }
             }
           })
           .catch(error => {
