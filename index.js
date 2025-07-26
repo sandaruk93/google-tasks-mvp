@@ -10,6 +10,7 @@ app.use(bodyParser.json());
 const SCOPES = ['https://www.googleapis.com/auth/tasks'];
 
 function getOAuth2Client() {
+  console.log('REDIRECT_URI from env:', process.env.REDIRECT_URI);
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -31,6 +32,7 @@ app.get('/oauth2callback', async (req, res) => {
     res.setHeader('Set-Cookie', `userTokens=${JSON.stringify(tokens)}; Path=/; HttpOnly`);
     res.redirect('/');
   } catch (err) {
+    console.error('OAuth error:', err.message);
     res.status(500).send(`OAuth2 error: ${err.message}`);
   }
 });
@@ -121,6 +123,8 @@ app.get('/', (req, res) => {
       prompt: 'consent',
     });
     
+    console.log('Generated OAuth URL:', url);
+    
     return res.send(`
       <!DOCTYPE html>
       <html>
@@ -177,4 +181,8 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Google Tasks MVP running on port ${PORT}`);
+  console.log('Environment variables:');
+  console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
+  console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
+  console.log('REDIRECT_URI:', process.env.REDIRECT_URI || 'NOT SET');
 });
