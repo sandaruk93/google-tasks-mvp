@@ -163,8 +163,7 @@ app.get('/', (req, res) => {
     const oAuth2Client = getOAuth2Client();
     const url = oAuth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: SCOPES,
-      prompt: 'consent',
+      scope: SCOPES
     });
     
     console.log('Generated OAuth URL:', url);
@@ -204,7 +203,7 @@ app.get('/', (req, res) => {
         textarea { height: 100px; resize: vertical; }
         button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
         .logout { background: #dc3545; }
-        .char-count { font-size: 12px; color: #666; text-align: right; margin-top: 5px; }
+        .char-count { font-size: 12px; color: #888; text-align: right; margin-top: 2px; margin-bottom: 10px; }
         .char-count.warning { color: #ff9800; }
         .char-count.error { color: #f44336; }
         .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
@@ -216,7 +215,7 @@ app.get('/', (req, res) => {
           const count = textarea.value.length;
           const maxLength = ${MAX_TASK_LENGTH};
           
-          charCount.textContent = count + '/' + maxLength + ' characters';
+          charCount.textContent = count + ' / ' + maxLength + ' characters';
           
           if (count > maxLength) {
             charCount.className = 'char-count error';
@@ -238,6 +237,7 @@ app.get('/', (req, res) => {
           }
           return true;
         }
+        window.onload = function() { updateCharCount(); };
       </script>
     </head>
     <body>
@@ -253,7 +253,7 @@ app.get('/', (req, res) => {
             oninput="updateCharCount()"
             maxlength="${MAX_TASK_LENGTH}"
           ></textarea>
-          <div id="charCount" class="char-count">0/${MAX_TASK_LENGTH} characters</div>
+          <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
           <button type="submit">Add Task</button>
         </form>
         <form method="POST" action="/logout" style="margin-top: 20px;">
