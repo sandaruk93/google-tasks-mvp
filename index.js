@@ -134,9 +134,9 @@ app.get('/account', (req, res) => {
         .container { max-width: 600px; margin: 0 auto; }
         button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
         .logout { background: #dc3545; }
-        .switch-account { background: #ff9800; }
-        .remove-account { background: #9c27b0; }
-        .back-btn { background: #666; }
+        .switch-account { background: #4285f4; }
+        .remove-account { background: #4285f4; }
+        .back-btn { background: #4285f4; }
         .account-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
         .account-info h2 { margin: 0 0 15px 0; color: #333; }
         .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -215,28 +215,28 @@ app.get('/account', (req, res) => {
     </head>
     <body>
       <div class="container">
-        <h1>📧 Account Management</h1>
+        <h1>Account Management</h1>
         
         <div class="account-info">
           <h2>Current Account Status</h2>
-          <p><strong>✅ Signed in with Google</strong></p>
+          <p><strong>Signed in with Google</strong></p>
           <p>You are currently signed in and can create tasks in your Google Tasks.</p>
         </div>
         
         <div class="section">
-          <h3>🔄 Switch Google Account</h3>
+          <h3>Switch Google Account</h3>
           <p>Switch to a different Google account. This will force Google to show the account selection screen.</p>
           <a href="/switch-account" class="btn switch-account" style="text-decoration: none; display: inline-block;">Switch Account</a>
         </div>
         
         <div class="section">
-          <h3>🗑️ Remove Account</h3>
+          <h3>Remove Account</h3>
           <p>Completely remove this account from the app. You will need to sign in again to use the app.</p>
           <button onclick="removeAccount()" class="remove-account">Remove Account</button>
         </div>
         
         <div class="section">
-          <h3>🚪 Logout</h3>
+          <h3>Logout</h3>
           <p>Logout from the current session. You can sign back in later.</p>
           <form method="POST" action="/logout" style="display: inline;">
             <button type="submit" class="logout">Logout</button>
@@ -244,7 +244,7 @@ app.get('/account', (req, res) => {
         </div>
         
         <div class="section">
-          <a href="/" class="btn back-btn" style="text-decoration: none; display: inline-block;">← Back to Tasks</a>
+          <a href="/" class="btn back-btn" style="text-decoration: none; display: inline-block;">Back to Tasks</a>
         </div>
       </div>
     </body>
@@ -442,7 +442,7 @@ app.get('/', (req, res) => {
               <div class="container">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
             <h2>Google Tasks MVP</h2>
-            <a href="/account" class="btn" style="text-decoration: none; display: inline-block; background: #666; padding: 8px 16px; font-size: 14px;">📧 Account</a>
+            <a href="/account" class="btn" style="text-decoration: none; display: inline-block; background: #4285f4; color: white; padding: 8px 16px; font-size: 14px; border-radius: 4px;">Account</a>
           </div>
           
           <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
