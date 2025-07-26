@@ -1,11 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const { google } = require('googleapis');
 require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(cookieParser());
 
 const SCOPES = ['https://www.googleapis.com/auth/tasks'];
 
@@ -29,7 +31,17 @@ app.get('/oauth2callback', async (req, res) => {
     const oAuth2Client = getOAuth2Client();
     const { tokens } = await oAuth2Client.getToken(code);
     
-    res.setHeader('Set-Cookie', `userTokens=${JSON.stringify(tokens)}; Path=/; HttpOnly`);
+    console.log('OAuth tokens received:', Object.keys(tokens));
+    
+    // Set cookie with better options
+    res.cookie('userTokens', JSON.stringify(tokens), {
+      httpOnly: true,
+      secure: false, // Set to true in production with HTTPS
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+    
+    console.log('Cookie set, redirecting to /');
     res.redirect('/');
   } catch (err) {
     console.error('OAuth error:', err.message);
@@ -40,7 +52,10 @@ app.get('/oauth2callback', async (req, res) => {
 // Handle add task
 app.post('/add-task', async (req, res) => {
   const userTokens = req.cookies && req.cookies.userTokens;
+  console.log('User tokens in add-task:', userTokens ? 'PRESENT' : 'MISSING');
+  
   if (!userTokens) {
+    console.log('No user tokens, redirecting to /');
     return res.redirect('/');
   }
 
@@ -107,15 +122,17 @@ app.post('/add-task', async (req, res) => {
 
 // Handle logout
 app.post('/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'userTokens=; Path=/; HttpOnly; Max-Age=0');
+  res.clearCookie('userTokens');
   res.redirect('/');
 });
 
 // Main page
 app.get('/', (req, res) => {
-  const isAuthenticated = req.cookies && req.cookies.userTokens;
+  const userTokens = req.cookies && req.cookies.userTokens;
+  console.log('User tokens on main page:', userTokens ? 'PRESENT' : 'MISSING');
+  console.log('All cookies:', req.cookies);
   
-  if (!isAuthenticated) {
+  if (!userTokens) {
     const oAuth2Client = getOAuth2Client();
     const url = oAuth2Client.generateAuthUrl({
       access_type: 'offline',
