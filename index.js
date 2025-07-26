@@ -208,7 +208,7 @@ app.post('/confirm-tasks', async (req, res) => {
 function extractActionItems(text) {
   const actionItems = [];
   
-  // Common action item patterns
+  // Common action item patterns - improved for better detection
   const patterns = [
     // "I will..." or "I'll..."
     /\bI\s+(?:will|'ll)\s+([^.!?]+[.!?])/gi,
@@ -221,7 +221,21 @@ function extractActionItems(text) {
     // "Next steps: ..."
     /next\s+steps?:\s*([^.!?]+[.!?])/gi,
     // "Follow up: ..."
-    /follow\s+up:\s*([^.!?]+[.!?])/gi
+    /follow\s+up:\s*([^.!?]+[.!?])/gi,
+    // "Task: ..." or "Tasks: ..."
+    /(?:task|tasks):\s*([^.!?]+[.!?])/gi,
+    // "Action: ..." or "Actions: ..."
+    /(?:action|actions):\s*([^.!?]+[.!?])/gi,
+    // "To do: ..." or "To-do: ..."
+    /to\s*-?\s*do:\s*([^.!?]+[.!?])/gi,
+    // "I need to..." (without the "I" part)
+    /need\s+to\s+([^.!?]+[.!?])/gi,
+    // "Have to..." (without the "I" part)
+    /have\s+to\s+([^.!?]+[.!?])/gi,
+    // "Should..." (without the "I" part)
+    /should\s+([^.!?]+[.!?])/gi,
+    // "Must..." (without the "I" part)
+    /must\s+([^.!?]+[.!?])/gi
   ];
   
   patterns.forEach(pattern => {
@@ -229,18 +243,35 @@ function extractActionItems(text) {
     if (matches) {
       matches.forEach(match => {
         // Clean up the extracted text
-        let cleanItem = match.replace(/^(?:I\s+(?:will|'ll|need\s+to|have\s+to|should|must)\s+|(?:action\s+item|todo):\s*|next\s+steps?:\s*|follow\s+up:\s*)/i, '');
+        let cleanItem = match.replace(/^(?:I\s+(?:will|'ll|need\s+to|have\s+to|should|must)\s+|(?:action\s+item|todo|task|tasks|action|actions|to\s*-?\s*do):\s*|next\s+steps?:\s*|follow\s+up:\s*|need\s+to\s+|have\s+to\s+|should\s+|must\s+)/i, '');
         cleanItem = cleanItem.trim();
         
-        if (cleanItem.length > 10 && cleanItem.length < 200) {
+        // Remove common prefixes and clean up
+        cleanItem = cleanItem.replace(/^[.!?]+/, '').trim();
+        cleanItem = cleanItem.replace(/[.!?]+$/, '').trim();
+        
+        if (cleanItem.length > 5 && cleanItem.length < 300) {
           actionItems.push(cleanItem);
         }
       });
     }
   });
   
-  // Remove duplicates
-  return [...new Set(actionItems)];
+  // Remove duplicates and filter out very similar items
+  const uniqueItems = [];
+  actionItems.forEach(item => {
+    const normalized = item.toLowerCase().trim();
+    const isDuplicate = uniqueItems.some(existing => 
+      existing.toLowerCase().trim() === normalized ||
+      existing.toLowerCase().trim().includes(normalized) ||
+      normalized.includes(existing.toLowerCase().trim())
+    );
+    if (!isDuplicate) {
+      uniqueItems.push(item);
+    }
+  });
+  
+  return uniqueItems;
 }
 
 // Handle logout
@@ -565,11 +596,9 @@ app.get('/', (req, res) => {
           })
           .then(response => response.json())
           .then(data => {
-            console.log('Response data:', data);
             if (data.success) {
               showToast(data.message, 'success');
               // Show task review section
-              console.log('Tasks to display:', data.tasks);
               displayTaskReview(data.tasks);
               // Reset file input
               fileInput.value = '';
@@ -589,17 +618,11 @@ app.get('/', (req, res) => {
         }
         
         function displayTaskReview(tasks) {
-          console.log('displayTaskReview called with tasks:', tasks);
           const taskReviewSection = document.getElementById('taskReviewSection');
           const taskList = document.getElementById('taskList');
           const confirmBtn = document.getElementById('confirmBtn');
           
-          console.log('taskReviewSection element:', taskReviewSection);
-          console.log('taskList element:', taskList);
-          console.log('confirmBtn element:', confirmBtn);
-          
           if (tasks.length === 0) {
-            console.log('No tasks to display');
             taskReviewSection.style.display = 'none';
             return;
           }
@@ -610,15 +633,18 @@ app.get('/', (req, res) => {
           // Create task items
           tasks.forEach((task, index) => {
             const taskItem = document.createElement('div');
-            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px; background: white;';
+            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
             taskItem.innerHTML = \`
-              <div style="display: flex; align-items: flex-start; gap: 10px;">
-                <input type="checkbox" id="task\${index}" checked style="margin-top: 3px;" onchange="updateConfirmButton()">
+              <div style="display: flex; align-items: flex-start; gap: 12px;">
+                <div style="margin-top: 8px;">
+                  <input type="checkbox" id="task\${index}" checked style="width: 18px; height: 18px; cursor: pointer;" onchange="updateConfirmButton()">
+                </div>
                 <div style="flex: 1;">
                   <textarea 
                     id="taskText\${index}" 
-                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 60px;"
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; min-height: 80px; font-size: 14px; line-height: 1.4; font-family: inherit;"
                     oninput="updateTaskText(\${index})"
+                    placeholder="Edit task description here..."
                   >\${task}</textarea>
                 </div>
               </div>
@@ -627,13 +653,10 @@ app.get('/', (req, res) => {
           });
           
           // Show review section
-          console.log('Setting taskReviewSection display to block');
           taskReviewSection.style.display = 'block';
-          console.log('Setting confirmBtn display to inline-block');
           confirmBtn.style.display = 'inline-block';
           
           // Scroll to review section
-          console.log('Scrolling to review section');
           taskReviewSection.scrollIntoView({ behavior: 'smooth' });
         }
         
@@ -761,12 +784,14 @@ app.get('/', (req, res) => {
         
         <!-- Task Review Section -->
         <div id="taskReviewSection" style="display: none; margin-top: 30px;">
-          <h3>Review Extracted Action Items</h3>
-          <p style="color: #666; margin-bottom: 20px;">Select the tasks you want to add to your Google Tasks list. You can also edit the text for better accuracy.</p>
-          <div id="taskList" style="margin-bottom: 20px;"></div>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <button type="button" id="selectAllBtn" onclick="toggleSelectAll()" style="background: #666; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Select All</button>
-            <button type="button" id="confirmBtn" onclick="confirmTasks()" style="background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; display: none;">Confirm</button>
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; color: #333;">Review Extracted Action Items</h3>
+            <p style="color: #666; margin: 0; font-size: 14px;">Select the tasks you want to add to your Google Tasks list. You can also edit the text for better accuracy.</p>
+          </div>
+          <div id="taskList" style="margin-bottom: 25px;"></div>
+          <div style="display: flex; gap: 12px; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+            <button type="button" id="selectAllBtn" onclick="toggleSelectAll()" style="background: #666; color: white; padding: 10px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Select All</button>
+            <button type="button" id="confirmBtn" onclick="confirmTasks()" style="background: #4285f4; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; display: none; font-size: 14px; font-weight: 500;">Confirm</button>
           </div>
         </div>
         </div>
