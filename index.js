@@ -10,6 +10,7 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 const SCOPES = ['https://www.googleapis.com/auth/tasks'];
+const MAX_TASK_LENGTH = 8192; // Google Tasks character limit
 
 function getOAuth2Client() {
   console.log('REDIRECT_URI from env:', process.env.REDIRECT_URI);
@@ -62,6 +63,32 @@ app.post('/add-task', async (req, res) => {
   const { task } = req.body;
   if (!task) {
     return res.status(400).send('Task is required');
+  }
+
+  // Check character limit
+  if (task.length > MAX_TASK_LENGTH) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error - Task Too Long</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          .container { max-width: 500px; margin: 0 auto; }
+          .error { color: red; }
+          a { color: #4285f4; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 class="error">Task Too Long</h2>
+          <p>Your task is ${task.length} characters long, but Google Tasks has a limit of ${MAX_TASK_LENGTH} characters.</p>
+          <p>Please shorten your task and try again.</p>
+          <a href="/">← Back to Try Again</a>
+        </div>
+      </body>
+      </html>
+    `);
   }
 
   try {
@@ -164,7 +191,7 @@ app.get('/', (req, res) => {
     `);
   }
   
-  // Show task creation form
+  // Show task creation form with character limit
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -173,16 +200,60 @@ app.get('/', (req, res) => {
       <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .container { max-width: 500px; margin: 0 auto; }
-        input { width: 100%; padding: 8px; margin: 10px 0; }
+        input, textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; }
+        textarea { height: 100px; resize: vertical; }
         button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
         .logout { background: #dc3545; }
+        .char-count { font-size: 12px; color: #666; text-align: right; margin-top: 5px; }
+        .char-count.warning { color: #ff9800; }
+        .char-count.error { color: #f44336; }
+        .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
       </style>
+      <script>
+        function updateCharCount() {
+          const textarea = document.getElementById('task');
+          const charCount = document.getElementById('charCount');
+          const count = textarea.value.length;
+          const maxLength = ${MAX_TASK_LENGTH};
+          
+          charCount.textContent = count + '/' + maxLength + ' characters';
+          
+          if (count > maxLength) {
+            charCount.className = 'char-count error';
+          } else if (count > maxLength * 0.9) {
+            charCount.className = 'char-count warning';
+          } else {
+            charCount.className = 'char-count';
+          }
+        }
+        
+        function validateForm() {
+          const textarea = document.getElementById('task');
+          const count = textarea.value.length;
+          const maxLength = ${MAX_TASK_LENGTH};
+          
+          if (count > maxLength) {
+            alert('Task is too long! Maximum ${MAX_TASK_LENGTH} characters allowed.');
+            return false;
+          }
+          return true;
+        }
+      </script>
     </head>
     <body>
       <div class="container">
         <h2>Google Tasks MVP</h2>
-        <form method="POST" action="/add-task">
-          <input name="task" placeholder="Enter a task" required />
+        <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
+        <form method="POST" action="/add-task" onsubmit="return validateForm()">
+          <textarea 
+            id="task" 
+            name="task" 
+            placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters)" 
+            required 
+            oninput="updateCharCount()"
+            maxlength="${MAX_TASK_LENGTH}"
+          ></textarea>
+          <div id="charCount" class="char-count">0/${MAX_TASK_LENGTH} characters</div>
           <button type="submit">Add Task</button>
         </form>
         <form method="POST" action="/logout" style="margin-top: 20px;">
