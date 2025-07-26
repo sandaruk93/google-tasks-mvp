@@ -116,6 +116,142 @@ app.post('/remove-account', (req, res) => {
   res.json({ success: true, message: 'Account removed successfully' });
 });
 
+// Account management page
+app.get('/account', (req, res) => {
+  const userTokens = req.cookies && req.cookies.userTokens;
+  
+  if (!userTokens) {
+    return res.redirect('/');
+  }
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Account Management - Google Tasks MVP</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
+        .logout { background: #dc3545; }
+        .switch-account { background: #ff9800; }
+        .remove-account { background: #9c27b0; }
+        .back-btn { background: #666; }
+        .account-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+        .account-info h2 { margin: 0 0 15px 0; color: #333; }
+        .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .section { margin-bottom: 30px; }
+        .section h3 { color: #555; margin-bottom: 15px; }
+        
+        /* Toast notification styles */
+        .toast {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          padding: 12px 20px;
+          border-radius: 4px;
+          color: white;
+          font-size: 14px;
+          z-index: 1000;
+          opacity: 0;
+          transform: translateX(100%);
+          transition: all 0.3s ease;
+        }
+        .toast.show {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        .toast.success { background-color: #4caf50; }
+        .toast.error { background-color: #f44336; }
+        .toast.info { background-color: #2196f3; }
+      </style>
+      <script>
+        function showToast(message, type = 'info') {
+          // Remove existing toasts
+          const existingToasts = document.querySelectorAll('.toast');
+          existingToasts.forEach(toast => toast.remove());
+          
+          // Create new toast
+          const toast = document.createElement('div');
+          toast.className = \`toast \${type}\`;
+          toast.textContent = message;
+          document.body.appendChild(toast);
+          
+          // Show toast
+          setTimeout(() => toast.classList.add('show'), 100);
+          
+          // Hide toast after 3 seconds
+          setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+          }, 3000);
+        }
+        
+        function removeAccount() {
+          if (confirm('Are you sure you want to remove this account? You will need to sign in again.')) {
+            fetch('/remove-account', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              }
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                  window.location.href = '/';
+                }, 1500);
+              } else {
+                showToast(data.message, 'error');
+              }
+            })
+            .catch(error => {
+              showToast('Network error. Please try again.', 'error');
+            });
+          }
+        }
+      </script>
+    </head>
+    <body>
+      <div class="container">
+        <h1>📧 Account Management</h1>
+        
+        <div class="account-info">
+          <h2>Current Account Status</h2>
+          <p><strong>✅ Signed in with Google</strong></p>
+          <p>You are currently signed in and can create tasks in your Google Tasks.</p>
+        </div>
+        
+        <div class="section">
+          <h3>🔄 Switch Google Account</h3>
+          <p>Switch to a different Google account. This will force Google to show the account selection screen.</p>
+          <a href="/switch-account" class="btn switch-account" style="text-decoration: none; display: inline-block;">Switch Account</a>
+        </div>
+        
+        <div class="section">
+          <h3>🗑️ Remove Account</h3>
+          <p>Completely remove this account from the app. You will need to sign in again to use the app.</p>
+          <button onclick="removeAccount()" class="remove-account">Remove Account</button>
+        </div>
+        
+        <div class="section">
+          <h3>🚪 Logout</h3>
+          <p>Logout from the current session. You can sign back in later.</p>
+          <form method="POST" action="/logout" style="display: inline;">
+            <button type="submit" class="logout">Logout</button>
+          </form>
+        </div>
+        
+        <div class="section">
+          <a href="/" class="btn back-btn" style="text-decoration: none; display: inline-block;">← Back to Tasks</a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Main page
 app.get('/', (req, res) => {
   const userTokens = req.cookies && req.cookies.userTokens;
@@ -164,17 +300,11 @@ app.get('/', (req, res) => {
         .container { max-width: 500px; margin: 0 auto; }
         input, textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; }
         textarea { height: 100px; resize: vertical; }
-        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
-        .logout { background: #dc3545; }
-        .switch-account { background: #ff9800; }
-        .remove-account { background: #9c27b0; }
+        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
         .char-count { font-size: 12px; color: #888; text-align: right; margin-top: 2px; margin-bottom: 10px; }
         .char-count.warning { color: #ff9800; }
         .char-count.error { color: #f44336; }
         .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
-        .account-info { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-        .account-info h3 { margin: 0 0 10px 0; color: #333; }
-        .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
         
         /* Toast notification styles */
         .toast {
@@ -302,31 +432,6 @@ app.get('/', (req, res) => {
           }
         }
         
-        function removeAccount() {
-          if (confirm('Are you sure you want to remove this account? You will need to sign in again.')) {
-            fetch('/remove-account', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-              }
-            })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                showToast(data.message, 'success');
-                setTimeout(() => {
-                  window.location.href = '/';
-                }, 1500);
-              } else {
-                showToast(data.message, 'error');
-              }
-            })
-            .catch(error => {
-              showToast('Network error. Please try again.', 'error');
-            });
-          }
-        }
-        
         window.onload = function() { 
           updateCharCount();
           document.getElementById('task').focus();
@@ -334,38 +439,27 @@ app.get('/', (req, res) => {
       </script>
     </head>
     <body>
-      <div class="container">
-        <h2>Google Tasks MVP</h2>
-        
-        <!-- Account Management Section -->
-        <div class="account-info">
-          <h3>📧 Account Management</h3>
-          <p><strong>Current Account:</strong> Signed in with Google</p>
-          <p><small>You can switch to a different Google account or remove this account entirely.</small></p>
-          <div class="account-actions">
-            <a href="/switch-account" class="btn switch-account" style="text-decoration: none; display: inline-block;">🔄 Switch Account</a>
-            <button onclick="removeAccount()" class="remove-account">🗑️ Remove Account</button>
-            <form method="POST" action="/logout" style="display: inline;">
-              <button type="submit" class="logout">🚪 Logout</button>
-            </form>
+              <div class="container">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h2>Google Tasks MVP</h2>
+            <a href="/account" class="btn" style="text-decoration: none; display: inline-block; background: #666; padding: 8px 16px; font-size: 14px;">📧 Account</a>
           </div>
+          
+          <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
+          <form onsubmit="event.preventDefault(); submitTask();">
+            <textarea 
+              id="task" 
+              name="task" 
+              placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters) - Press Enter to add" 
+              required 
+              oninput="updateCharCount()"
+              onkeypress="handleKeyPress(event)"
+              maxlength="${MAX_TASK_LENGTH}"
+            ></textarea>
+            <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
+            <button type="submit" id="submitBtn">Add Task</button>
+          </form>
         </div>
-        
-        <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
-        <form onsubmit="event.preventDefault(); submitTask();">
-          <textarea 
-            id="task" 
-            name="task" 
-            placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters) - Press Enter to add" 
-            required 
-            oninput="updateCharCount()"
-            onkeypress="handleKeyPress(event)"
-            maxlength="${MAX_TASK_LENGTH}"
-          ></textarea>
-          <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
-          <button type="submit" id="submitBtn">Add Task</button>
-        </form>
-      </div>
     </body>
     </html>
   `);
