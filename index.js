@@ -62,33 +62,15 @@ app.post('/add-task', async (req, res) => {
 
   const { task } = req.body;
   if (!task) {
-    return res.status(400).send('Task is required');
+    return res.json({ success: false, message: 'Task is required' });
   }
 
   // Check character limit
   if (task.length > MAX_TASK_LENGTH) {
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Error - Task Too Long</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; }
-          .container { max-width: 500px; margin: 0 auto; }
-          .error { color: red; }
-          a { color: #4285f4; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h2 class="error">Task Too Long</h2>
-          <p>Your task is ${task.length} characters long, but Google Tasks has a limit of ${MAX_TASK_LENGTH} characters.</p>
-          <p>Please shorten your task and try again.</p>
-          <a href="/">← Back to Try Again</a>
-        </div>
-      </body>
-      </html>
-    `);
+    return res.json({ 
+      success: false, 
+      message: `Task is too long (${task.length} characters). Maximum ${MAX_TASK_LENGTH} characters allowed.` 
+    });
   }
 
   try {
@@ -101,49 +83,9 @@ app.post('/add-task', async (req, res) => {
       requestBody: { title: task },
     });
 
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Task Added</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; }
-          .container { max-width: 500px; margin: 0 auto; }
-          .success { color: green; }
-          a { color: #4285f4; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h2 class="success">Task Added Successfully!</h2>
-          <p>Your task "${task}" has been added to your Google Tasks.</p>
-          <a href="/">← Back to Add More Tasks</a>
-        </div>
-      </body>
-      </html>
-    `);
+    res.json({ success: true, message: 'Task added successfully!' });
   } catch (err) {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Error</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; }
-          .container { max-width: 500px; margin: 0 auto; }
-          .error { color: red; }
-          a { color: #4285f4; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h2 class="error">Error Adding Task</h2>
-          <p>Error: ${err.message}</p>
-          <a href="/">← Back to Try Again</a>
-        </div>
-      </body>
-      </html>
-    `);
+    res.json({ success: false, message: `Error: ${err.message}` });
   }
 });
 
@@ -207,6 +149,30 @@ app.get('/', (req, res) => {
         .char-count.warning { color: #ff9800; }
         .char-count.error { color: #f44336; }
         .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
+        
+        /* Toast notification styles */
+        .toast {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          padding: 12px 20px;
+          border-radius: 4px;
+          color: white;
+          font-size: 14px;
+          z-index: 1000;
+          opacity: 0;
+          transform: translateX(100%);
+          transition: all 0.3s ease;
+        }
+        .toast.show {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        .toast.success { background-color: #4caf50; }
+        .toast.error { background-color: #f44336; }
+        .toast.info { background-color: #2196f3; }
+        
+        .loading { opacity: 0.6; pointer-events: none; }
       </style>
       <script>
         function updateCharCount() {
@@ -226,35 +192,106 @@ app.get('/', (req, res) => {
           }
         }
         
-        function validateForm() {
-          const textarea = document.getElementById('task');
-          const count = textarea.value.length;
-          const maxLength = ${MAX_TASK_LENGTH};
+        function showToast(message, type = 'info') {
+          // Remove existing toasts
+          const existingToasts = document.querySelectorAll('.toast');
+          existingToasts.forEach(toast => toast.remove());
           
-          if (count > maxLength) {
-            alert('Task is too long! Maximum ${MAX_TASK_LENGTH} characters allowed.');
-            return false;
-          }
-          return true;
+          // Create new toast
+          const toast = document.createElement('div');
+          toast.className = \`toast \${type}\`;
+          toast.textContent = message;
+          document.body.appendChild(toast);
+          
+          // Show toast
+          setTimeout(() => toast.classList.add('show'), 100);
+          
+          // Hide toast after 3 seconds
+          setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+          }, 3000);
         }
-        window.onload = function() { updateCharCount(); };
+        
+        function submitTask() {
+          const textarea = document.getElementById('task');
+          const submitBtn = document.getElementById('submitBtn');
+          const task = textarea.value.trim();
+          
+          if (!task) {
+            showToast('Please enter a task', 'error');
+            return;
+          }
+          
+          if (task.length > ${MAX_TASK_LENGTH}) {
+            showToast(\`Task is too long (${task.length} characters). Maximum ${MAX_TASK_LENGTH} characters allowed.\`, 'error');
+            return;
+          }
+          
+          // Show loading state
+          submitBtn.textContent = 'Adding...';
+          submitBtn.disabled = true;
+          textarea.disabled = true;
+          
+          // Submit task via AJAX
+          fetch('/add-task', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: \`task=\${encodeURIComponent(task)}\`
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showToast(data.message, 'success');
+              textarea.value = '';
+              updateCharCount();
+            } else {
+              showToast(data.message, 'error');
+            }
+          })
+          .catch(error => {
+            showToast('Network error. Please try again.', 'error');
+          })
+          .finally(() => {
+            // Reset loading state
+            submitBtn.textContent = 'Add Task';
+            submitBtn.disabled = false;
+            textarea.disabled = false;
+            textarea.focus();
+          });
+        }
+        
+        function handleKeyPress(event) {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            submitTask();
+          }
+        }
+        
+        window.onload = function() { 
+          updateCharCount();
+          document.getElementById('task').focus();
+        };
       </script>
     </head>
     <body>
       <div class="container">
         <h2>Google Tasks MVP</h2>
         <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
-        <form method="POST" action="/add-task" onsubmit="return validateForm()">
+        <form onsubmit="event.preventDefault(); submitTask();">
           <textarea 
             id="task" 
             name="task" 
-            placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters)" 
+            placeholder="Enter a task (max ${MAX_TASK_LENGTH} characters) - Press Enter to add" 
             required 
             oninput="updateCharCount()"
+            onkeypress="handleKeyPress(event)"
             maxlength="${MAX_TASK_LENGTH}"
           ></textarea>
           <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
-          <button type="submit">Add Task</button>
+          <button type="submit" id="submitBtn">Add Task</button>
         </form>
         <form method="POST" action="/logout" style="margin-top: 20px;">
           <button type="submit" class="logout">Logout</button>
