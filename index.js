@@ -95,6 +95,27 @@ app.post('/logout', (req, res) => {
   res.redirect('/');
 });
 
+// Handle switch account - forces Google to show account picker
+app.get('/switch-account', (req, res) => {
+  // Clear current tokens
+  res.clearCookie('userTokens');
+  
+  const oAuth2Client = getOAuth2Client();
+  const url = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+    prompt: 'select_account' // Forces Google to show account picker
+  });
+  
+  res.redirect(url);
+});
+
+// Handle remove account - clears tokens and redirects to home
+app.post('/remove-account', (req, res) => {
+  res.clearCookie('userTokens');
+  res.json({ success: true, message: 'Account removed successfully' });
+});
+
 // Main page
 app.get('/', (req, res) => {
   const userTokens = req.cookies && req.cookies.userTokens;
@@ -143,12 +164,17 @@ app.get('/', (req, res) => {
         .container { max-width: 500px; margin: 0 auto; }
         input, textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; }
         textarea { height: 100px; resize: vertical; }
-        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
         .logout { background: #dc3545; }
+        .switch-account { background: #ff9800; }
+        .remove-account { background: #9c27b0; }
         .char-count { font-size: 12px; color: #888; text-align: right; margin-top: 2px; margin-bottom: 10px; }
         .char-count.warning { color: #ff9800; }
         .char-count.error { color: #f44336; }
         .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
+        .account-info { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .account-info h3 { margin: 0 0 10px 0; color: #333; }
+        .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
         
         /* Toast notification styles */
         .toast {
@@ -276,6 +302,31 @@ app.get('/', (req, res) => {
           }
         }
         
+        function removeAccount() {
+          if (confirm('Are you sure you want to remove this account? You will need to sign in again.')) {
+            fetch('/remove-account', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              }
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                  window.location.href = '/';
+                }, 1500);
+              } else {
+                showToast(data.message, 'error');
+              }
+            })
+            .catch(error => {
+              showToast('Network error. Please try again.', 'error');
+            });
+          }
+        }
+        
         window.onload = function() { 
           updateCharCount();
           document.getElementById('task').focus();
@@ -285,6 +336,21 @@ app.get('/', (req, res) => {
     <body>
       <div class="container">
         <h2>Google Tasks MVP</h2>
+        
+        <!-- Account Management Section -->
+        <div class="account-info">
+          <h3>📧 Account Management</h3>
+          <p><strong>Current Account:</strong> Signed in with Google</p>
+          <p><small>You can switch to a different Google account or remove this account entirely.</small></p>
+          <div class="account-actions">
+            <a href="/switch-account" class="btn switch-account" style="text-decoration: none; display: inline-block;">🔄 Switch Account</a>
+            <button onclick="removeAccount()" class="remove-account">🗑️ Remove Account</button>
+            <form method="POST" action="/logout" style="display: inline;">
+              <button type="submit" class="logout">🚪 Logout</button>
+            </form>
+          </div>
+        </div>
+        
         <div class="limit-info">Google Tasks has a limit of ${MAX_TASK_LENGTH} characters per task.</div>
         <form onsubmit="event.preventDefault(); submitTask();">
           <textarea 
@@ -298,9 +364,6 @@ app.get('/', (req, res) => {
           ></textarea>
           <div id="charCount" class="char-count">0 / ${MAX_TASK_LENGTH} characters</div>
           <button type="submit" id="submitBtn">Add Task</button>
-        </form>
-        <form method="POST" action="/logout" style="margin-top: 20px;">
-          <button type="submit" class="logout">Logout</button>
         </form>
       </div>
     </body>
