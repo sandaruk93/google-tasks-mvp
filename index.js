@@ -251,15 +251,15 @@ async function extractActionItems(text) {
     // Generate response from Gemini
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    const geminiResponse = response.text();
     
-    console.log('Gemini response:', text);
+    console.log('Gemini response:', geminiResponse);
     
     // Parse the JSON response
     let actionItems = [];
     try {
       // Clean up the response and parse JSON
-      const cleanedText = text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      const cleanedText = geminiResponse.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
       actionItems = JSON.parse(cleanedText);
       
       // Ensure it's an array
@@ -278,7 +278,7 @@ async function extractActionItems(text) {
       
     } catch (parseError) {
       console.error('Error parsing Gemini response:', parseError);
-      console.error('Raw response:', text);
+      console.error('Raw response:', geminiResponse);
       return [];
     }
     
