@@ -463,20 +463,27 @@ app.post('/remove-account', (req, res) => {
 });
 
 // Account management page
-app.get('/account', (req, res) => {
+app.get('/account', async (req, res) => {
   const userTokens = req.cookies && req.cookies.userTokens;
   
   if (!userTokens) {
     return res.redirect('/');
   }
   
-  // Extract user email from tokens (if available)
+  // Extract user email from Google API
   let userEmail = 'Signed in with Google';
   try {
     const tokens = JSON.parse(userTokens);
-    // Note: We don't have user email in tokens, but we can show a generic message
+    const oAuth2Client = getOAuth2Client();
+    oAuth2Client.setCredentials(tokens);
+    
+    // Get user info from Google
+    const oauth2 = google.oauth2({ version: 'v2', auth: oAuth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    userEmail = userInfo.data.email;
   } catch (e) {
-    // Use default message if parsing fails
+    console.error('Error getting user email:', e.message);
+    // Use default message if API call fails
   }
   
   res.send(`
@@ -513,14 +520,15 @@ app.get('/account', (req, res) => {
           color: #4285f4;
           font-size: 16px;
           cursor: pointer;
-          padding: 8px 0;
-          margin-right: 20px;
+          padding: 8px 12px;
+          border-radius: 6px;
           text-decoration: none;
           display: flex;
           align-items: center;
+          transition: all 0.2s ease;
         }
         .back-btn:hover {
-          text-decoration: underline;
+          background: #f8f9fa;
         }
         .page-title {
           font-size: 28px;
@@ -546,22 +554,49 @@ app.get('/account', (req, res) => {
           color: #6c757d;
           margin: 0;
         }
-        .section {
-          margin-bottom: 32px;
+        
+        .account-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 24px;
+          margin-top: 32px;
         }
-        .section-title {
-          font-size: 18px;
+        
+        .action-card {
+          background: white;
+          border: 1px solid #e9ecef;
+          border-radius: 16px;
+          padding: 32px;
+          text-align: center;
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .action-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .action-icon {
+          font-size: 48px;
+          margin-bottom: 20px;
+        }
+        
+        .action-title {
+          font-size: 20px;
           font-weight: 600;
           color: #1a1a1a;
           margin: 0 0 12px 0;
         }
-        .section-subtitle {
+        
+        .action-subtitle {
           font-size: 14px;
           color: #6c757d;
-          margin: 0 0 16px 0;
+          margin: 0 0 24px 0;
           line-height: 1.5;
         }
-        .btn {
+        
+        .action-btn {
           display: inline-block;
           padding: 12px 24px;
           border-radius: 8px;
@@ -571,29 +606,41 @@ app.get('/account', (req, res) => {
           cursor: pointer;
           border: none;
           transition: all 0.2s ease;
+          min-width: 140px;
         }
-        .btn-primary {
-          background: #4285f4;
+        
+        .action-btn.primary {
+          background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
           color: white;
+          box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
         }
-        .btn-primary:hover {
-          background: #3367d6;
+        
+        .action-btn.primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(66, 133, 244, 0.4);
         }
-        .btn-danger {
-          background: #dc3545;
+        
+        .action-btn.danger {
+          background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
           color: white;
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
         }
-        .btn-danger:hover {
-          background: #c82333;
+        
+        .action-btn.danger:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
         }
-        .btn-outline-danger {
+        
+        .action-btn.outline-danger {
           background: transparent;
           color: #dc3545;
           border: 1px solid #dc3545;
         }
-        .btn-outline-danger:hover {
+        
+        .action-btn.outline-danger:hover {
           background: #dc3545;
           color: white;
+          transform: translateY(-2px);
         }
         
         /* Toast notification styles */
@@ -670,33 +717,47 @@ app.get('/account', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <a href="/" class="back-btn">← Back</a>
-          <h1 class="page-title">Account</h1>
+          <div style="display: flex; align-items: center; gap: 20px;">
+            <a href="/" class="back-btn">← Back</a>
+            <h1 class="page-title">Account</h1>
+          </div>
         </div>
         
-        <div class="user-info">
-          <p class="user-email">${userEmail}</p>
-          <p class="user-subtitle">You can create and manage tasks in your Google Tasks</p>
-        </div>
-        
-        <div class="section">
-          <h2 class="section-title">Switch Account</h2>
-          <p class="section-subtitle">Sign in with a different Google account</p>
-          <a href="/switch-account" class="btn btn-primary">Switch Account</a>
-        </div>
-        
-        <div class="section">
-          <h2 class="section-title">Remove Account</h2>
-          <p class="section-subtitle">Completely remove this account from the app</p>
-          <button onclick="removeAccount()" class="btn btn-outline-danger">Remove Account</button>
-        </div>
-        
-        <div class="section">
-          <h2 class="section-title">Logout</h2>
-          <p class="section-subtitle">Sign out from your current session</p>
-          <form method="POST" action="/logout" style="display: inline;">
-            <button type="submit" class="btn btn-danger">Logout</button>
-          </form>
+        <div class="main-content">
+          <div class="hero-section">
+            <h1 class="hero-title">Account Management</h1>
+            <p class="hero-subtitle">Manage your account settings and preferences</p>
+          </div>
+          
+          <div class="user-info">
+            <p class="user-email">You are signed in as ${userEmail}</p>
+            <p class="user-subtitle">You can create and manage tasks in your Google Tasks</p>
+          </div>
+          
+          <div class="account-actions">
+            <div class="action-card">
+              <div class="action-icon">🔄</div>
+              <h3 class="action-title">Switch Account</h3>
+              <p class="action-subtitle">Sign in with a different Google account</p>
+              <a href="/switch-account" class="action-btn primary">Switch Account</a>
+            </div>
+            
+            <div class="action-card">
+              <div class="action-icon">🗑️</div>
+              <h3 class="action-title">Remove Account</h3>
+              <p class="action-subtitle">Completely remove this account from the app</p>
+              <button onclick="removeAccount()" class="action-btn outline-danger">Remove Account</button>
+            </div>
+            
+            <div class="action-card">
+              <div class="action-icon">🚪</div>
+              <h3 class="action-title">Logout</h3>
+              <p class="action-subtitle">Sign out from your current session</p>
+              <form method="POST" action="/logout" style="display: inline;">
+                <button type="submit" class="action-btn danger">Logout</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </body>
@@ -892,7 +953,7 @@ app.get('/', (req, res) => {
           background: #f8f9fa;
           border-radius: 16px;
           padding: 40px;
-          margin-bottom: 40px;
+          margin-bottom: 20px;
           border: 2px dashed #dee2e6;
           transition: all 0.3s ease;
         }
@@ -900,6 +961,12 @@ app.get('/', (req, res) => {
         .upload-section:hover {
           border-color: #4285f4;
           background: #f0f4ff;
+        }
+        
+        .upload-section.dragover {
+          border-color: #4285f4;
+          background: #f0f4ff;
+          transform: scale(1.02);
         }
         
         .upload-area {
@@ -1491,15 +1558,71 @@ app.get('/', (req, res) => {
           });
         }
         
+        // Drag and drop functionality
+        function setupDragAndDrop() {
+          const uploadSection = document.getElementById('uploadSection');
+          const fileInput = document.getElementById('transcriptFile');
+          
+          // Prevent default drag behaviors
+          ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+          });
+          
+          // Highlight drop area when item is dragged over it
+          ['dragenter', 'dragover'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, highlight, false);
+          });
+          
+          ['dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, unhighlight, false);
+          });
+          
+          // Handle dropped files
+          uploadSection.addEventListener('drop', handleDrop, false);
+          
+          function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          
+          function highlight(e) {
+            uploadSection.classList.add('dragover');
+          }
+          
+          function unhighlight(e) {
+            uploadSection.classList.remove('dragover');
+          }
+          
+          function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+              const file = files[0];
+              
+              // Check if it's a PDF file
+              if (file.type === 'application/pdf') {
+                fileInput.files = files;
+                updateFileInfo();
+              } else {
+                showToast('Please select a PDF file', 'error');
+              }
+            }
+          }
+        }
+        
         window.onload = function() { 
-          // Focus is not needed for file upload
+          setupDragAndDrop();
         };
       </script>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">Omnia</div>
+          <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="logo">Omnia</div>
+          </div>
           <div class="nav-menu">
             <div class="dropdown">
               <button class="dropdown-btn">
@@ -1520,34 +1643,32 @@ app.get('/', (req, res) => {
             <p class="hero-subtitle">Upload your meeting transcript and let our AI identify action items, deadlines, and create tasks in your Google Tasks automatically.</p>
           </div>
           
-          <div class="upload-section">
-            <form onsubmit="event.preventDefault(); processTranscript();" enctype="multipart/form-data">
-              <input 
-                type="file" 
-                id="transcriptFile" 
-                name="transcript" 
-                accept=".pdf"
-                style="display: none;"
-                onchange="updateFileInfo()"
-              />
-              <div class="upload-area" onclick="document.getElementById('transcriptFile').click();">
-                <div class="upload-icon">📄</div>
-                <div class="upload-title">Upload Meeting Transcript</div>
-                <div class="upload-subtitle">Click to select a PDF file</div>
-                <div class="upload-info">Maximum file size: 10MB</div>
-              </div>
-              
-              <div id="fileInfo" class="file-info">
-                <div style="font-weight: 600; margin-bottom: 8px;">Selected file:</div>
-                <div id="fileName" style="margin-bottom: 4px;"></div>
-                <div id="fileSize" style="color: #666; font-size: 14px;"></div>
-              </div>
-              
-              <button type="submit" id="submitBtn" class="process-btn" disabled>
-                Process Transcript
-              </button>
-            </form>
+          <div class="upload-section" id="uploadSection">
+            <input 
+              type="file" 
+              id="transcriptFile" 
+              name="transcript" 
+              accept=".pdf"
+              style="display: none;"
+              onchange="updateFileInfo()"
+            />
+            <div class="upload-area" onclick="document.getElementById('transcriptFile').click();">
+              <div class="upload-icon">📄</div>
+              <div class="upload-title">Upload Meeting Transcript</div>
+              <div class="upload-subtitle">Click to select a PDF file or drag and drop</div>
+              <div class="upload-info">Maximum file size: 10MB</div>
+            </div>
+            
+            <div id="fileInfo" class="file-info">
+              <div style="font-weight: 600; margin-bottom: 8px;">Selected file:</div>
+              <div id="fileName" style="margin-bottom: 4px;"></div>
+              <div id="fileSize" style="color: #666; font-size: 14px;"></div>
+            </div>
           </div>
+          
+          <button type="button" id="submitBtn" class="process-btn" disabled onclick="processTranscript()">
+            Process
+          </button>
           
           <div id="taskReviewSection" class="task-review-section">
             <div class="review-header">
@@ -1690,8 +1811,10 @@ app.get('/privacy-policy', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">Omnia</div>
-          <a href="/" class="back-link">← Back to App</a>
+          <div style="display: flex; align-items: center; gap: 20px;">
+            <a href="/" class="back-link">← Back</a>
+            <div class="logo">Omnia</div>
+          </div>
         </div>
         
         <div class="content">
@@ -1887,8 +2010,10 @@ app.get('/terms-conditions', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">Omnia</div>
-          <a href="/" class="back-link">← Back to App</a>
+          <div style="display: flex; align-items: center; gap: 20px;">
+            <a href="/" class="back-link">← Back</a>
+            <div class="logo">Omnia</div>
+          </div>
         </div>
         
         <div class="content">
