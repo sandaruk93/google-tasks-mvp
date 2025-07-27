@@ -15,6 +15,11 @@ app.use(cookieParser());
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Check if Gemini API key is set
+if (!process.env.GEMINI_API_KEY) {
+  console.warn('GEMINI_API_KEY not found in environment variables. Task extraction will fall back to regex patterns.');
+}
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -232,6 +237,12 @@ async function extractActionItems(text) {
   try {
     console.log('Using Gemini AI to extract action items...');
     
+    // Check if Gemini API key is available
+    if (!process.env.GEMINI_API_KEY) {
+      console.log('Gemini API key not found, falling back to regex extraction');
+      return extractActionItemsFallback(text);
+    }
+    
     // Initialize Gemini model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
@@ -249,10 +260,12 @@ async function extractActionItems(text) {
       'Meeting transcript: ' + text;
 
     // Generate response from Gemini
+    console.log('Calling Gemini API...');
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const geminiResponse = response.text();
     
+    console.log('Gemini response received, length:', geminiResponse.length);
     console.log('Gemini response:', geminiResponse);
     
     // Parse the JSON response
@@ -260,11 +273,13 @@ async function extractActionItems(text) {
     try {
       // Clean up the response and parse JSON
       const cleanedText = geminiResponse.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      console.log('Cleaned response for JSON parsing:', cleanedText);
       actionItems = JSON.parse(cleanedText);
       
       // Ensure it's an array
       if (!Array.isArray(actionItems)) {
         console.error('Gemini response is not an array:', actionItems);
+        console.error('Response type:', typeof actionItems);
         return [];
       }
       
@@ -279,11 +294,15 @@ async function extractActionItems(text) {
     } catch (parseError) {
       console.error('Error parsing Gemini response:', parseError);
       console.error('Raw response:', geminiResponse);
-      return [];
+      console.log('Falling back to regex extraction due to parsing error');
+      return extractActionItemsFallback(text);
     }
     
   } catch (error) {
     console.error('Error using Gemini AI:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    console.log('Falling back to regex extraction due to Gemini error');
     // Fallback to basic regex extraction if Gemini fails
     return extractActionItemsFallback(text);
   }
