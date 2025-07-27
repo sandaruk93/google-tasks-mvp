@@ -102,7 +102,22 @@ app.post('/add-task', async (req, res) => {
 
   try {
     const oAuth2Client = getOAuth2Client();
-    oAuth2Client.setCredentials(JSON.parse(userTokens));
+    const tokens = JSON.parse(userTokens);
+    
+    oAuth2Client.setCredentials(tokens);
+    
+    // Check if we need to refresh the token
+    if (tokens.expiry_date && Date.now() >= tokens.expiry_date) {
+      console.log('Token expired, attempting refresh...');
+      try {
+        const { credentials } = await oAuth2Client.refreshAccessToken();
+        console.log('Token refreshed successfully');
+        oAuth2Client.setCredentials(credentials);
+      } catch (refreshError) {
+        console.error('Failed to refresh token:', refreshError.message);
+        return res.json({ success: false, message: 'Authentication expired. Please sign in again.' });
+      }
+    }
     
     const tasks = google.tasks({ version: 'v1', auth: oAuth2Client });
     await tasks.tasks.insert({
@@ -180,17 +195,34 @@ app.post('/confirm-tasks', async (req, res) => {
     return res.json({ success: false, message: 'No tasks provided for creation.' });
   }
 
+        try {
+    // Create tasks for each selected item
+    const oAuth2Client = getOAuth2Client();
+    console.log('OAuth2Client created');
+    
+    const tokens = JSON.parse(userTokens);
+    console.log('Token keys:', Object.keys(tokens));
+    console.log('Has refresh token:', !!tokens.refresh_token);
+    
+    oAuth2Client.setCredentials(tokens);
+    console.log('Credentials set');
+    
+    // Check if we need to refresh the token
+    if (tokens.expiry_date && Date.now() >= tokens.expiry_date) {
+      console.log('Token expired, attempting refresh...');
       try {
-      // Create tasks for each selected item
-      const oAuth2Client = getOAuth2Client();
-      console.log('OAuth2Client created');
-      
-      oAuth2Client.setCredentials(JSON.parse(userTokens));
-      console.log('Credentials set');
-      
-      const tasksAPI = google.tasks({ version: 'v1', auth: oAuth2Client });
-      console.log('Tasks API initialized');
-      const createdTasks = [];
+        const { credentials } = await oAuth2Client.refreshAccessToken();
+        console.log('Token refreshed successfully');
+        oAuth2Client.setCredentials(credentials);
+      } catch (refreshError) {
+        console.error('Failed to refresh token:', refreshError.message);
+        return res.json({ success: false, message: 'Authentication expired. Please sign in again.' });
+      }
+    }
+    
+    const tasksAPI = google.tasks({ version: 'v1', auth: oAuth2Client });
+    console.log('Tasks API initialized');
+    const createdTasks = [];
     
     for (const task of tasks) {
       console.log('Processing task:', task);
@@ -617,7 +649,8 @@ app.get('/', (req, res) => {
     const oAuth2Client = getOAuth2Client();
     const url = oAuth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: SCOPES
+      scope: SCOPES,
+      prompt: 'consent' // Force consent screen to get refresh token
     });
     
     console.log('Generated OAuth URL:', url);
