@@ -354,24 +354,131 @@ app.get('/account', (req, res) => {
     return res.redirect('/');
   }
   
+  // Extract user email from tokens (if available)
+  let userEmail = 'Signed in with Google';
+  try {
+    const tokens = JSON.parse(userTokens);
+    // Note: We don't have user email in tokens, but we can show a generic message
+  } catch (e) {
+    // Use default message if parsing fails
+  }
+  
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Account Management - Google Tasks MVP</title>
+      <title>Account - Google Tasks MVP</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
-        .logout { background: #dc3545; }
-        .switch-account { background: #4285f4; }
-        .remove-account { background: #4285f4; }
-        .back-btn { background: #4285f4; }
-        .account-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        .account-info h2 { margin: 0 0 15px 0; color: #333; }
-        .account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-        .section { margin-bottom: 30px; }
-        .section h3 { color: #555; margin-bottom: 15px; }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+          margin: 0; 
+          padding: 0; 
+          background-color: #f8f9fa; 
+          color: #333; 
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 40px 20px; 
+          background: white; 
+          min-height: 100vh; 
+          box-shadow: 0 0 20px rgba(0,0,0,0.1); 
+        }
+        .header {
+          display: flex;
+          align-items: center;
+          margin-bottom: 40px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid #e9ecef;
+        }
+        .back-btn {
+          background: none;
+          border: none;
+          color: #4285f4;
+          font-size: 16px;
+          cursor: pointer;
+          padding: 8px 0;
+          margin-right: 20px;
+          text-decoration: none;
+          display: flex;
+          align-items: center;
+        }
+        .back-btn:hover {
+          text-decoration: underline;
+        }
+        .page-title {
+          font-size: 28px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 0;
+        }
+        .user-info {
+          background: #f8f9fa;
+          padding: 24px;
+          border-radius: 12px;
+          margin-bottom: 32px;
+          border: 1px solid #e9ecef;
+        }
+        .user-email {
+          font-size: 18px;
+          font-weight: 500;
+          color: #1a1a1a;
+          margin: 0 0 8px 0;
+        }
+        .user-subtitle {
+          font-size: 14px;
+          color: #6c757d;
+          margin: 0;
+        }
+        .section {
+          margin-bottom: 32px;
+        }
+        .section-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 0 0 12px 0;
+        }
+        .section-subtitle {
+          font-size: 14px;
+          color: #6c757d;
+          margin: 0 0 16px 0;
+          line-height: 1.5;
+        }
+        .btn {
+          display: inline-block;
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          text-decoration: none;
+          cursor: pointer;
+          border: none;
+          transition: all 0.2s ease;
+        }
+        .btn-primary {
+          background: #4285f4;
+          color: white;
+        }
+        .btn-primary:hover {
+          background: #3367d6;
+        }
+        .btn-danger {
+          background: #dc3545;
+          color: white;
+        }
+        .btn-danger:hover {
+          background: #c82333;
+        }
+        .btn-outline-danger {
+          background: transparent;
+          color: #dc3545;
+          border: 1px solid #dc3545;
+        }
+        .btn-outline-danger:hover {
+          background: #dc3545;
+          color: white;
+        }
         
         /* Toast notification styles */
         .toast {
@@ -379,21 +486,22 @@ app.get('/account', (req, res) => {
           top: 20px;
           right: 20px;
           padding: 12px 20px;
-          border-radius: 4px;
+          border-radius: 8px;
           color: white;
           font-size: 14px;
           z-index: 1000;
           opacity: 0;
           transform: translateX(100%);
           transition: all 0.3s ease;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .toast.show {
           opacity: 1;
           transform: translateX(0);
         }
-        .toast.success { background-color: #4caf50; }
-        .toast.error { background-color: #f44336; }
-        .toast.info { background-color: #2196f3; }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+        .toast.info { background-color: #17a2b8; }
       </style>
       <script>
         function showToast(message, type = 'info') {
@@ -445,36 +553,34 @@ app.get('/account', (req, res) => {
     </head>
     <body>
       <div class="container">
-        <h1>Account Management</h1>
+        <div class="header">
+          <a href="/" class="back-btn">← Back</a>
+          <h1 class="page-title">Account</h1>
+        </div>
         
-        <div class="account-info">
-          <h2>Current Account Status</h2>
-          <p><strong>Signed in with Google</strong></p>
-          <p>You are currently signed in and can create tasks in your Google Tasks.</p>
+        <div class="user-info">
+          <p class="user-email">${userEmail}</p>
+          <p class="user-subtitle">You can create and manage tasks in your Google Tasks</p>
         </div>
         
         <div class="section">
-          <h3>Switch Google Account</h3>
-          <p>Switch to a different Google account. This will force Google to show the account selection screen.</p>
-          <a href="/switch-account" class="btn switch-account" style="text-decoration: none; display: inline-block;">Switch Account</a>
+          <h2 class="section-title">Switch Account</h2>
+          <p class="section-subtitle">Sign in with a different Google account</p>
+          <a href="/switch-account" class="btn btn-primary">Switch Account</a>
         </div>
         
         <div class="section">
-          <h3>Remove Account</h3>
-          <p>Completely remove this account from the app. You will need to sign in again to use the app.</p>
-          <button onclick="removeAccount()" class="remove-account">Remove Account</button>
+          <h2 class="section-title">Remove Account</h2>
+          <p class="section-subtitle">Completely remove this account from the app</p>
+          <button onclick="removeAccount()" class="btn btn-outline-danger">Remove Account</button>
         </div>
         
         <div class="section">
-          <h3>Logout</h3>
-          <p>Logout from the current session. You can sign back in later.</p>
+          <h2 class="section-title">Logout</h2>
+          <p class="section-subtitle">Sign out from your current session</p>
           <form method="POST" action="/logout" style="display: inline;">
-            <button type="submit" class="logout">Logout</button>
+            <button type="submit" class="btn btn-danger">Logout</button>
           </form>
-        </div>
-        
-        <div class="section">
-          <a href="/" class="btn back-btn" style="text-decoration: none; display: inline-block;">Back to Tasks</a>
         </div>
       </div>
     </body>
