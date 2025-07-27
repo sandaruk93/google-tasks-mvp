@@ -224,18 +224,37 @@ app.post('/confirm-tasks', async (req, res) => {
     console.log('Tasks API initialized');
     const createdTasks = [];
     
-    for (const task of tasks) {
-      console.log('Processing task:', task);
-      if (task.trim()) {
+    for (const taskObj of tasks) {
+      // Handle both old string format and new object format
+      const taskText = typeof taskObj === 'string' ? taskObj : taskObj.task;
+      const deadline = typeof taskObj === 'string' ? null : taskObj.deadline;
+      
+      console.log('Processing task:', taskText);
+      console.log('Deadline:', deadline);
+      
+      if (taskText && taskText.trim()) {
         try {
-          console.log('Creating task with title:', task.trim());
+          console.log('Creating task with title:', taskText.trim());
           console.log('Calling Google Tasks API...');
+          
+          // Prepare task request body
+          const requestBody = { title: taskText.trim() };
+          
+          // Add due date if deadline is provided
+          if (deadline) {
+            const dueDate = new Date(deadline);
+            if (!isNaN(dueDate.getTime())) {
+              requestBody.due = dueDate.toISOString();
+              console.log('Adding due date:', requestBody.due);
+            }
+          }
+          
           const result = await tasksAPI.tasks.insert({
             tasklist: '@default',
-            requestBody: { title: task.trim() },
+            requestBody: requestBody,
           });
           console.log('Task created successfully:', result.data);
-          createdTasks.push(task);
+          createdTasks.push(taskText);
         } catch (err) {
           console.error('Error creating task:', err.message);
           console.error('Full error:', err);
@@ -278,7 +297,7 @@ async function extractActionItems(text) {
     // Initialize Gemini model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    // Create prompt for task extraction
+    // Create prompt for task extraction with deadline detection
     const prompt = 'You are an expert at identifying action items and tasks from meeting transcripts. ' +
       'Please analyze the following meeting transcript and extract all action items, tasks, and responsibilities that were assigned or mentioned. Focus on: ' +
       '1. Tasks assigned to specific people ' +
@@ -286,9 +305,12 @@ async function extractActionItems(text) {
       '3. Follow-up items ' +
       '4. Deadlines or time-sensitive tasks ' +
       '5. Responsibilities mentioned ' +
-      'For each action item, provide a clear, concise description that would work as a task title. ' +
-      'Return ONLY a JSON array of strings, where each string is a task description. Do not include any other text, explanations, or formatting. ' +
-      'Example output format: ["Review the quarterly budget by Friday", "Schedule follow-up meeting with marketing team", "Update the project timeline"] ' +
+      'For each action item, identify if there is a specific deadline or time reference mentioned. ' +
+      'Return ONLY a JSON array of objects, where each object has: ' +
+      '- "task": a clear, concise task description ' +
+      '- "deadline": the deadline in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) if mentioned, or null if no deadline ' +
+      '- "deadlineText": the original deadline text as mentioned in the transcript (e.g., "by Friday", "tomorrow", "next week") ' +
+      'Example output format: [{"task": "Review the quarterly budget", "deadline": "2024-01-15T17:00:00", "deadlineText": "by Friday"}, {"task": "Schedule follow-up meeting", "deadline": null, "deadlineText": null}] ' +
       'Meeting transcript: ' + text;
 
     // Generate response from Gemini
@@ -315,10 +337,38 @@ async function extractActionItems(text) {
         return [];
       }
       
-      // Filter out empty or invalid items
-      actionItems = actionItems.filter(item => 
-        item && typeof item === 'string' && item.trim().length > 5 && item.trim().length < 300
-      );
+      // Filter out empty or invalid items and convert to new format
+      actionItems = actionItems.filter(item => {
+        if (!item || typeof item !== 'object') {
+          console.log('Skipping invalid item:', item);
+          return false;
+        }
+        
+        // Handle both old string format and new object format
+        if (typeof item === 'string') {
+          // Convert old string format to new object format
+          return item.trim().length > 5 && item.trim().length < 300;
+        } else if (item.task) {
+          // New object format
+          return item.task.trim().length > 5 && item.task.trim().length < 300;
+        }
+        return false;
+      }).map(item => {
+        // Convert to consistent object format
+        if (typeof item === 'string') {
+          return {
+            task: item.trim(),
+            deadline: null,
+            deadlineText: null
+          };
+        } else {
+          return {
+            task: item.task.trim(),
+            deadline: item.deadline || null,
+            deadlineText: item.deadlineText || null
+          };
+        }
+      });
       
       console.log('Extracted action items:', actionItems);
       return actionItems;
@@ -361,13 +411,28 @@ function extractActionItemsFallback(text) {
         cleanItem = cleanItem.trim().replace(/^[.!?]+/, '').replace(/[.!?]+$/, '');
         
         if (cleanItem.length > 5 && cleanItem.length < 300) {
-          actionItems.push(cleanItem);
+          actionItems.push({
+            task: cleanItem,
+            deadline: null,
+            deadlineText: null
+          });
         }
       });
     }
   });
   
-  return [...new Set(actionItems)];
+  // Remove duplicates based on task text
+  const uniqueTasks = [];
+  const seenTasks = new Set();
+  
+  actionItems.forEach(item => {
+    if (!seenTasks.has(item.task.toLowerCase())) {
+      seenTasks.add(item.task.toLowerCase());
+      uniqueTasks.push(item);
+    }
+  });
+  
+  return uniqueTasks;
 }
 
 // Handle logout
@@ -842,9 +907,39 @@ app.get('/', (req, res) => {
             taskGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 20px;';
           }
           
-          tasks.forEach((task, index) => {
+          tasks.forEach((taskObj, index) => {
+            // Handle both old string format and new object format
+            const taskText = typeof taskObj === 'string' ? taskObj : taskObj.task;
+            const deadline = typeof taskObj === 'string' ? null : taskObj.deadline;
+            const deadlineText = typeof taskObj === 'string' ? null : taskObj.deadlineText;
+            
             const taskItem = document.createElement('div');
             taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; border-radius: 6px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+            
+            // Create deadline display and input
+            let deadlineHtml = '';
+            if (deadline || deadlineText) {
+              const deadlineDate = deadline ? new Date(deadline) : null;
+              const formattedDate = deadlineDate ? deadlineDate.toISOString().slice(0, 16) : '';
+              deadlineHtml = \`
+                <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #4285f4;">
+                  <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+                    <strong>Deadline:</strong> \${deadlineText || 'Detected deadline'}
+                  </div>
+                  <input 
+                    type="datetime-local" 
+                    id="deadline\${index}" 
+                    value="\${formattedDate}"
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                    onchange="updateDeadline(\${index})"
+                  >
+                  <div style="font-size: 11px; color: #888; margin-top: 3px;">
+                    You can modify the date and time above
+                  </div>
+                </div>
+              \`;
+            }
+            
             taskItem.innerHTML = \`
               <div style="display: flex; align-items: flex-start; gap: 12px;">
                 <div style="margin-top: 8px;">
@@ -857,7 +952,8 @@ app.get('/', (req, res) => {
                     oninput="updateTaskText(\${index})"
                     placeholder="Edit task description here..."
                     maxlength="${MAX_TASK_LENGTH}"
-                  >\${task}</textarea>
+                  >\${taskText}</textarea>
+                  \${deadlineHtml}
                 </div>
               </div>
             \`;
@@ -879,6 +975,10 @@ app.get('/', (req, res) => {
         
         function updateTaskText(index) {
           // This function can be used for any text editing validation if needed
+        }
+        
+        function updateDeadline(index) {
+          // This function can be used for deadline validation if needed
         }
         
         function toggleSelectAll() {
@@ -923,13 +1023,19 @@ app.get('/', (req, res) => {
             return;
           }
           
-          // Collect selected tasks
+          // Collect selected tasks with deadlines
           const selectedTasks = [];
           checkboxes.forEach(checkbox => {
             const index = checkbox.id.replace('task', '');
             const taskText = document.getElementById(\`taskText\${index}\`).value.trim();
+            const deadlineInput = document.getElementById(\`deadline\${index}\`);
+            const deadline = deadlineInput ? deadlineInput.value : null;
+            
             if (taskText) {
-              selectedTasks.push(taskText);
+              selectedTasks.push({
+                task: taskText,
+                deadline: deadline
+              });
             }
           });
           
