@@ -171,19 +171,24 @@ app.post('/confirm-tasks', async (req, res) => {
     return res.json({ success: false, message: 'No tasks provided for creation.' });
   }
 
-  try {
-    // Create tasks for each selected item
-    const oAuth2Client = getOAuth2Client();
-    oAuth2Client.setCredentials(JSON.parse(userTokens));
-    
-    const tasksAPI = google.tasks({ version: 'v1', auth: oAuth2Client });
-    const createdTasks = [];
+      try {
+      // Create tasks for each selected item
+      const oAuth2Client = getOAuth2Client();
+      console.log('OAuth2Client created');
+      
+      oAuth2Client.setCredentials(JSON.parse(userTokens));
+      console.log('Credentials set');
+      
+      const tasksAPI = google.tasks({ version: 'v1', auth: oAuth2Client });
+      console.log('Tasks API initialized');
+      const createdTasks = [];
     
     for (const task of tasks) {
       console.log('Processing task:', task);
       if (task.trim()) {
         try {
           console.log('Creating task with title:', task.trim());
+          console.log('Calling Google Tasks API...');
           const result = await tasksAPI.tasks.insert({
             tasklist: '@default',
             requestBody: { title: task.trim() },
@@ -193,6 +198,7 @@ app.post('/confirm-tasks', async (req, res) => {
         } catch (err) {
           console.error('Error creating task:', err.message);
           console.error('Full error:', err);
+          console.error('Error stack:', err.stack);
         }
       } else {
         console.log('Skipping empty task');
@@ -755,6 +761,7 @@ app.get('/', (req, res) => {
           confirmBtn.disabled = true;
           
           // Submit selected tasks
+          console.log('Sending request to /confirm-tasks with data:', { tasks: selectedTasks });
           fetch('/confirm-tasks', {
             method: 'POST',
             headers: {
@@ -764,6 +771,10 @@ app.get('/', (req, res) => {
           })
           .then(response => {
             console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            if (!response.ok) {
+              throw new Error(\`HTTP error! status: \${response.status}\`);
+            }
             return response.json();
           })
           .then(data => {
@@ -778,6 +789,7 @@ app.get('/', (req, res) => {
           })
           .catch(error => {
             console.error('Error in confirmTasks:', error);
+            console.error('Error details:', error.message);
             showToast('Network error. Please try again.', 'error');
           })
           .finally(() => {
