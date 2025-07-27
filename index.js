@@ -4,12 +4,16 @@ const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { google } = require('googleapis');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Configure multer for file uploads
 const upload = multer({
@@ -126,8 +130,8 @@ app.post('/process-transcript', upload.single('transcript'), async (req, res) =>
     
     console.log('PDF parsed successfully, length:', transcriptText.length);
     
-    // Extract action items (simple regex-based approach for MVP)
-    const actionItems = extractActionItems(transcriptText);
+    // Extract action items using Gemini AI
+    const actionItems = await extractActionItems(transcriptText);
     
     if (actionItems.length === 0) {
       return res.json({ 
@@ -223,51 +227,87 @@ app.post('/confirm-tasks', async (req, res) => {
   }
 });
 
-// Function to extract action items from transcript text
-function extractActionItems(text) {
+// Function to extract action items from transcript text using Gemini AI
+async function extractActionItems(text) {
+  try {
+    console.log('Using Gemini AI to extract action items...');
+    
+    // Initialize Gemini model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // Create prompt for task extraction
+    const prompt = 'You are an expert at identifying action items and tasks from meeting transcripts. ' +
+      'Please analyze the following meeting transcript and extract all action items, tasks, and responsibilities that were assigned or mentioned. Focus on: ' +
+      '1. Tasks assigned to specific people ' +
+      '2. Action items that need to be completed ' +
+      '3. Follow-up items ' +
+      '4. Deadlines or time-sensitive tasks ' +
+      '5. Responsibilities mentioned ' +
+      'For each action item, provide a clear, concise description that would work as a task title. ' +
+      'Return ONLY a JSON array of strings, where each string is a task description. Do not include any other text, explanations, or formatting. ' +
+      'Example output format: ["Review the quarterly budget by Friday", "Schedule follow-up meeting with marketing team", "Update the project timeline"] ' +
+      'Meeting transcript: ' + text;
+
+    // Generate response from Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('Gemini response:', text);
+    
+    // Parse the JSON response
+    let actionItems = [];
+    try {
+      // Clean up the response and parse JSON
+      const cleanedText = text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      actionItems = JSON.parse(cleanedText);
+      
+      // Ensure it's an array
+      if (!Array.isArray(actionItems)) {
+        console.error('Gemini response is not an array:', actionItems);
+        return [];
+      }
+      
+      // Filter out empty or invalid items
+      actionItems = actionItems.filter(item => 
+        item && typeof item === 'string' && item.trim().length > 5 && item.trim().length < 300
+      );
+      
+      console.log('Extracted action items:', actionItems);
+      return actionItems;
+      
+    } catch (parseError) {
+      console.error('Error parsing Gemini response:', parseError);
+      console.error('Raw response:', text);
+      return [];
+    }
+    
+  } catch (error) {
+    console.error('Error using Gemini AI:', error);
+    // Fallback to basic regex extraction if Gemini fails
+    return extractActionItemsFallback(text);
+  }
+}
+
+// Fallback function using regex patterns (in case Gemini fails)
+function extractActionItemsFallback(text) {
   const actionItems = [];
   
-  // Common action item patterns - improved for better detection
+  // Basic patterns for fallback
   const patterns = [
-    // "I will..." or "I'll..."
     /\bI\s+(?:will|'ll)\s+([^.!?]+[.!?])/gi,
-    // "I need to..." or "I have to..."
     /\bI\s+(?:need\s+to|have\s+to)\s+([^.!?]+[.!?])/gi,
-    // "I should..." or "I must..."
-    /\bI\s+(?:should|must)\s+([^.!?]+[.!?])/gi,
-    // "Action item: ..." or "TODO: ..."
     /(?:action\s+item|todo):\s*([^.!?]+[.!?])/gi,
-    // "Next steps: ..."
     /next\s+steps?:\s*([^.!?]+[.!?])/gi,
-    // "Follow up: ..."
-    /follow\s+up:\s*([^.!?]+[.!?])/gi,
-    // "Task: ..." or "Tasks: ..."
-    /(?:task|tasks):\s*([^.!?]+[.!?])/gi,
-    // "Action: ..." or "Actions: ..."
-    /(?:action|actions):\s*([^.!?]+[.!?])/gi,
-    // "To do: ..." or "To-do: ..."
-    /to\s*-?\s*do:\s*([^.!?]+[.!?])/gi,
-    // "I need to..." (without the "I" part)
-    /need\s+to\s+([^.!?]+[.!?])/gi,
-    // "Have to..." (without the "I" part)
-    /have\s+to\s+([^.!?]+[.!?])/gi,
-    // "Should..." (without the "I" part)
-    /should\s+([^.!?]+[.!?])/gi,
-    // "Must..." (without the "I" part)
-    /must\s+([^.!?]+[.!?])/gi
+    /follow\s+up:\s*([^.!?]+[.!?])/gi
   ];
   
   patterns.forEach(pattern => {
     const matches = text.match(pattern);
     if (matches) {
       matches.forEach(match => {
-        // Clean up the extracted text
-        let cleanItem = match.replace(/^(?:I\s+(?:will|'ll|need\s+to|have\s+to|should|must)\s+|(?:action\s+item|todo|task|tasks|action|actions|to\s*-?\s*do):\s*|next\s+steps?:\s*|follow\s+up:\s*|need\s+to\s+|have\s+to\s+|should\s+|must\s+)/i, '');
-        cleanItem = cleanItem.trim();
-        
-        // Remove common prefixes and clean up
-        cleanItem = cleanItem.replace(/^[.!?]+/, '').trim();
-        cleanItem = cleanItem.replace(/[.!?]+$/, '').trim();
+        let cleanItem = match.replace(/^(?:I\s+(?:will|'ll|need\s+to|have\s+to)\s+|(?:action\s+item|todo):\s*|next\s+steps?:\s*|follow\s+up:\s*)/i, '');
+        cleanItem = cleanItem.trim().replace(/^[.!?]+/, '').replace(/[.!?]+$/, '');
         
         if (cleanItem.length > 5 && cleanItem.length < 300) {
           actionItems.push(cleanItem);
@@ -276,21 +316,7 @@ function extractActionItems(text) {
     }
   });
   
-  // Remove duplicates and filter out very similar items
-  const uniqueItems = [];
-  actionItems.forEach(item => {
-    const normalized = item.toLowerCase().trim();
-    const isDuplicate = uniqueItems.some(existing => 
-      existing.toLowerCase().trim() === normalized ||
-      existing.toLowerCase().trim().includes(normalized) ||
-      normalized.includes(existing.toLowerCase().trim())
-    );
-    if (!isDuplicate) {
-      uniqueItems.push(item);
-    }
-  });
-  
-  return uniqueItems;
+  return [...new Set(actionItems)];
 }
 
 // Handle logout
