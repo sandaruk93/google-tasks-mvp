@@ -747,41 +747,448 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Upload meeting transcript - Google Tasks MVP</title>
+      <title>Omnia - AI-Powered Task Extraction</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        input, textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; }
-        textarea { height: 100px; resize: vertical; }
-        button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-        .char-count { font-size: 12px; color: #888; text-align: right; margin-top: 2px; margin-bottom: 10px; }
-        .char-count.warning { color: #ff9800; }
-        .char-count.error { color: #f44336; }
-        .limit-info { font-size: 12px; color: #666; margin-bottom: 10px; }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          color: #333;
+        }
+        
+        .container { 
+          max-width: 1200px; 
+          margin: 0 auto; 
+          padding: 20px;
+          background: white;
+          min-height: 100vh;
+          box-shadow: 0 0 50px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px 0;
+          border-bottom: 1px solid #e9ecef;
+          margin-bottom: 40px;
+        }
+        
+        .logo {
+          font-size: 32px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        
+        .nav-menu {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+        
+        .dropdown {
+          position: relative;
+          display: inline-block;
+        }
+        
+        .dropdown-btn {
+          background: none;
+          border: none;
+          color: #4285f4;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .dropdown-btn:hover {
+          background: #f8f9fa;
+        }
+        
+        .dropdown-content {
+          display: none;
+          position: absolute;
+          right: 0;
+          background: white;
+          min-width: 200px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+          border-radius: 8px;
+          z-index: 1000;
+          overflow: hidden;
+        }
+        
+        .dropdown-content a {
+          color: #333;
+          padding: 12px 16px;
+          text-decoration: none;
+          display: block;
+          transition: background 0.2s ease;
+          font-size: 14px;
+        }
+        
+        .dropdown-content a:hover {
+          background: #f8f9fa;
+        }
+        
+        .dropdown:hover .dropdown-content {
+          display: block;
+        }
+        
+        .account-link {
+          text-decoration: none;
+          color: #4285f4;
+          font-size: 14px;
+          font-weight: 500;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        
+        .account-link:hover {
+          background: #f8f9fa;
+        }
+        
+        .main-content {
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        
+        .hero-section {
+          text-align: center;
+          margin-bottom: 40px;
+        }
+        
+        .hero-title {
+          font-size: 36px;
+          font-weight: 700;
+          color: #1a1a1a;
+          margin-bottom: 16px;
+          line-height: 1.2;
+        }
+        
+        .hero-subtitle {
+          font-size: 18px;
+          color: #666;
+          margin-bottom: 32px;
+          line-height: 1.6;
+        }
+        
+        .upload-section {
+          background: #f8f9fa;
+          border-radius: 16px;
+          padding: 40px;
+          margin-bottom: 40px;
+          border: 2px dashed #dee2e6;
+          transition: all 0.3s ease;
+        }
+        
+        .upload-section:hover {
+          border-color: #4285f4;
+          background: #f0f4ff;
+        }
+        
+        .upload-area {
+          text-align: center;
+          cursor: pointer;
+        }
+        
+        .upload-icon {
+          font-size: 64px;
+          color: #4285f4;
+          margin-bottom: 20px;
+        }
+        
+        .upload-title {
+          font-size: 24px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin-bottom: 12px;
+        }
+        
+        .upload-subtitle {
+          font-size: 16px;
+          color: #666;
+          margin-bottom: 8px;
+        }
+        
+        .upload-info {
+          font-size: 14px;
+          color: #888;
+        }
+        
+        .file-info {
+          display: none;
+          margin-top: 24px;
+          padding: 20px;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e9ecef;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        .process-btn {
+          background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+          color: white;
+          padding: 16px 32px;
+          border: none;
+          border-radius: 12px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          margin-top: 24px;
+          box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+        }
+        
+        .process-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(66, 133, 244, 0.4);
+        }
+        
+        .process-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+        
+        .task-review-section {
+          display: none;
+          margin-top: 40px;
+          padding: 32px;
+          background: white;
+          border-radius: 16px;
+          border: 1px solid #e9ecef;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .review-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        
+        .review-title {
+          font-size: 24px;
+          font-weight: 600;
+          color: #1a1a1a;
+        }
+        
+        .review-actions {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        
+        .btn {
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          border: none;
+          transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+          background: #4285f4;
+          color: white;
+        }
+        
+        .btn-primary:hover {
+          background: #3367d6;
+        }
+        
+        .btn-secondary {
+          background: #f8f9fa;
+          color: #333;
+          border: 1px solid #dee2e6;
+        }
+        
+        .btn-secondary:hover {
+          background: #e9ecef;
+        }
+        
+        .task-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 24px;
+          margin-top: 24px;
+        }
+        
+        .task-item {
+          border: 1px solid #e9ecef;
+          border-radius: 12px;
+          padding: 20px;
+          background: white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          transition: all 0.2s ease;
+        }
+        
+        .task-item:hover {
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        
+        .task-content {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        
+        .task-checkbox {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          margin-top: 8px;
+        }
+        
+        .task-textarea {
+          width: 100%;
+          padding: 16px;
+          border: 1px solid #dee2e6;
+          border-radius: 8px;
+          resize: none;
+          height: 120px;
+          font-size: 14px;
+          line-height: 1.5;
+          font-family: inherit;
+          transition: border-color 0.2s ease;
+        }
+        
+        .task-textarea:focus {
+          outline: none;
+          border-color: #4285f4;
+          box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+        }
+        
+        .deadline-section {
+          margin-top: 16px;
+          padding: 16px;
+          background: #f8f9fa;
+          border-radius: 8px;
+          border-left: 4px solid #4285f4;
+        }
+        
+        .deadline-label {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 8px;
+          font-weight: 500;
+        }
+        
+        .deadline-input {
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #dee2e6;
+          border-radius: 6px;
+          font-size: 14px;
+          transition: border-color 0.2s ease;
+        }
+        
+        .deadline-input:focus {
+          outline: none;
+          border-color: #4285f4;
+        }
+        
+        .deadline-help {
+          font-size: 11px;
+          color: #888;
+          margin-top: 6px;
+        }
         
         /* Toast notification styles */
         .toast {
           position: fixed;
           top: 20px;
           right: 20px;
-          padding: 12px 20px;
-          border-radius: 4px;
+          padding: 16px 24px;
+          border-radius: 8px;
           color: white;
           font-size: 14px;
+          font-weight: 500;
           z-index: 1000;
           opacity: 0;
           transform: translateX(100%);
           transition: all 0.3s ease;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.15);
         }
+        
         .toast.show {
           opacity: 1;
           transform: translateX(0);
         }
-        .toast.success { background-color: #4caf50; }
-        .toast.error { background-color: #f44336; }
-        .toast.info { background-color: #2196f3; }
         
-        .loading { opacity: 0.6; pointer-events: none; }
+        .toast.success { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); }
+        .toast.error { background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%); }
+        .toast.info { background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%); }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+          .container {
+            padding: 16px;
+          }
+          
+          .header {
+            flex-direction: column;
+            gap: 16px;
+            text-align: center;
+          }
+          
+          .nav-menu {
+            justify-content: center;
+          }
+          
+          .hero-title {
+            font-size: 28px;
+          }
+          
+          .hero-subtitle {
+            font-size: 16px;
+          }
+          
+          .upload-section {
+            padding: 24px;
+          }
+          
+          .upload-icon {
+            font-size: 48px;
+          }
+          
+          .upload-title {
+            font-size: 20px;
+          }
+          
+          .task-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .review-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .review-actions {
+            justify-content: center;
+          }
+        }
       </style>
       <script>
         function updateFileInfo() {
@@ -898,14 +1305,9 @@ app.get('/', (req, res) => {
           // Clear previous tasks
           taskList.innerHTML = '';
           
-          // Create task items in two columns
+          // Create task grid
           const taskGrid = document.createElement('div');
-          taskGrid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px;';
-          
-          // Responsive design for smaller screens
-          if (window.innerWidth < 768) {
-            taskGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 20px;';
-          }
+          taskGrid.className = 'task-grid';
           
           tasks.forEach((taskObj, index) => {
             // Handle both old string format and new object format
@@ -914,7 +1316,7 @@ app.get('/', (req, res) => {
             const deadlineText = typeof taskObj === 'string' ? null : taskObj.deadlineText;
             
             const taskItem = document.createElement('div');
-            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; border-radius: 6px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+            taskItem.className = 'task-item';
             
             // Create deadline display and input
             let deadlineHtml = '';
@@ -922,18 +1324,18 @@ app.get('/', (req, res) => {
               const deadlineDate = deadline ? new Date(deadline) : null;
               const formattedDate = deadlineDate ? deadlineDate.toISOString().slice(0, 16) : '';
               deadlineHtml = \`
-                <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #4285f4;">
-                  <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+                <div class="deadline-section">
+                  <div class="deadline-label">
                     <strong>Deadline:</strong> \${deadlineText || 'Detected deadline'}
                   </div>
                   <input 
                     type="datetime-local" 
                     id="deadline\${index}" 
                     value="\${formattedDate}"
-                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                    class="deadline-input"
                     onchange="updateDeadline(\${index})"
                   >
-                  <div style="font-size: 11px; color: #888; margin-top: 3px;">
+                  <div class="deadline-help">
                     You can modify the date and time above
                   </div>
                 </div>
@@ -941,14 +1343,14 @@ app.get('/', (req, res) => {
             }
             
             taskItem.innerHTML = \`
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="margin-top: 8px;">
-                  <input type="checkbox" id="task\${index}" style="width: 18px; height: 18px; cursor: pointer;" onchange="updateConfirmButton()">
+              <div class="task-content">
+                <div>
+                  <input type="checkbox" id="task\${index}" class="task-checkbox" onchange="updateConfirmButton()">
                 </div>
                 <div style="flex: 1;">
                   <textarea 
                     id="taskText\${index}" 
-                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; resize: none; height: 120px; font-size: 14px; line-height: 1.4; font-family: inherit;"
+                    class="task-textarea"
                     oninput="updateTaskText(\${index})"
                     placeholder="Edit task description here..."
                     maxlength="${MAX_TASK_LENGTH}"
@@ -1095,50 +1497,462 @@ app.get('/', (req, res) => {
       </script>
     </head>
     <body>
-              <div class="container">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-            <h2>Upload meeting transcript - Google Tasks MVP</h2>
-            <a href="/account" style="text-decoration: none; color: #4285f4; font-size: 14px; font-weight: 500;">Account</a>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Omnia</div>
+          <div class="nav-menu">
+            <div class="dropdown">
+              <button class="dropdown-btn">
+                About ▼
+              </button>
+              <div class="dropdown-content">
+                <a href="/privacy-policy">Privacy Policy</a>
+                <a href="/terms-conditions">Terms & Conditions</a>
+              </div>
+            </div>
+            <a href="/account" class="account-link">Account</a>
+          </div>
+        </div>
+        
+        <div class="main-content">
+          <div class="hero-section">
+            <h1 class="hero-title">AI-Powered Task Extraction</h1>
+            <p class="hero-subtitle">Upload your meeting transcript and let our AI identify action items, deadlines, and create tasks in your Google Tasks automatically.</p>
           </div>
           
-                  <div class="limit-info">Upload a PDF meeting transcript (max 10MB). The tool will identify action items and let you review them before creating tasks.</div>
-        <form onsubmit="event.preventDefault(); processTranscript();" enctype="multipart/form-data">
-          <div style="border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 8px; margin: 20px 0; background: #f9f9f9;">
-            <input 
-              type="file" 
-              id="transcriptFile" 
-              name="transcript" 
-              accept=".pdf"
-              style="display: none;"
-              onchange="updateFileInfo()"
-            />
-            <div id="uploadArea" onclick="document.getElementById('transcriptFile').click();" style="cursor: pointer;">
-              <div style="font-size: 48px; color: #666; margin-bottom: 10px;">📄</div>
-              <div style="font-size: 18px; color: #333; margin-bottom: 10px;">Click to upload PDF transcript</div>
-              <div style="font-size: 14px; color: #666;">Maximum file size: 10MB</div>
-            </div>
-            <div id="fileInfo" style="display: none; margin-top: 20px; padding: 15px; background: white; border-radius: 4px; border: 1px solid #ddd;">
-              <div style="font-weight: bold; margin-bottom: 5px;">Selected file:</div>
-              <div id="fileName" style="color: #4285f4;"></div>
-              <div id="fileSize" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
-            </div>
+          <div class="upload-section">
+            <form onsubmit="event.preventDefault(); processTranscript();" enctype="multipart/form-data">
+              <input 
+                type="file" 
+                id="transcriptFile" 
+                name="transcript" 
+                accept=".pdf"
+                style="display: none;"
+                onchange="updateFileInfo()"
+              />
+              <div class="upload-area" onclick="document.getElementById('transcriptFile').click();">
+                <div class="upload-icon">📄</div>
+                <div class="upload-title">Upload Meeting Transcript</div>
+                <div class="upload-subtitle">Click to select a PDF file</div>
+                <div class="upload-info">Maximum file size: 10MB</div>
+              </div>
+              
+              <div id="fileInfo" class="file-info">
+                <div style="font-weight: 600; margin-bottom: 8px;">Selected file:</div>
+                <div id="fileName" style="margin-bottom: 4px;"></div>
+                <div id="fileSize" style="color: #666; font-size: 14px;"></div>
+              </div>
+              
+              <button type="submit" id="submitBtn" class="process-btn" disabled>
+                Process Transcript
+              </button>
+            </form>
           </div>
-          <button type="submit" id="submitBtn" disabled>Process</button>
-        </form>
+          
+          <div id="taskReviewSection" class="task-review-section">
+            <div class="review-header">
+              <h2 class="review-title">Review Extracted Tasks</h2>
+              <div class="review-actions">
+                <button id="selectAllBtn" class="btn btn-secondary" onclick="toggleSelectAll()">Select All</button>
+                <button id="confirmBtn" class="btn btn-primary" onclick="confirmTasks()" style="display: none;">Confirm (0 tasks)</button>
+              </div>
+            </div>
+            <div id="taskList"></div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// Privacy Policy page
+app.get('/privacy-policy', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Privacy Policy - Omnia</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
         
-        <!-- Task Review Section -->
-        <div id="taskReviewSection" style="display: none; margin-top: 30px;">
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; color: #333;">Review Extracted Action Items</h3>
-            <p style="color: #666; margin: 0; font-size: 14px;">Select the tasks you want to add to your Google Tasks list. You can also edit the text for better accuracy.</p>
-          </div>
-          <div id="taskList" style="margin-bottom: 25px;"></div>
-          <div style="display: flex; gap: 12px; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 6px;">
-            <button type="button" id="selectAllBtn" onclick="toggleSelectAll()" style="background: #666; color: white; padding: 10px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Select All</button>
-            <button type="button" id="confirmBtn" onclick="confirmTasks()" style="background: #4285f4; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; display: none; font-size: 14px; font-weight: 500;">Confirm</button>
-          </div>
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          color: #333;
+        }
+        
+        .container { 
+          max-width: 800px; 
+          margin: 0 auto; 
+          padding: 20px;
+          background: white;
+          min-height: 100vh;
+          box-shadow: 0 0 50px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px 0;
+          border-bottom: 1px solid #e9ecef;
+          margin-bottom: 40px;
+        }
+        
+        .logo {
+          font-size: 32px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        
+        .back-link {
+          text-decoration: none;
+          color: #4285f4;
+          font-size: 16px;
+          font-weight: 500;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        
+        .back-link:hover {
+          background: #f8f9fa;
+        }
+        
+        .content {
+          line-height: 1.8;
+          color: #333;
+        }
+        
+        .content h1 {
+          font-size: 32px;
+          font-weight: 700;
+          color: #1a1a1a;
+          margin-bottom: 24px;
+        }
+        
+        .content h2 {
+          font-size: 24px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 32px 0 16px 0;
+        }
+        
+        .content h3 {
+          font-size: 20px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 24px 0 12px 0;
+        }
+        
+        .content p {
+          margin-bottom: 16px;
+          font-size: 16px;
+        }
+        
+        .content ul {
+          margin-bottom: 16px;
+          padding-left: 24px;
+        }
+        
+        .content li {
+          margin-bottom: 8px;
+          font-size: 16px;
+        }
+        
+        @media (max-width: 768px) {
+          .container {
+            padding: 16px;
+          }
+          
+          .header {
+            flex-direction: column;
+            gap: 16px;
+            text-align: center;
+          }
+          
+          .content h1 {
+            font-size: 28px;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Omnia</div>
+          <a href="/" class="back-link">← Back to App</a>
         </div>
+        
+        <div class="content">
+          <h1>Privacy Policy</h1>
+          
+          <p><strong>Last updated: [Date]</strong></p>
+          
+          <p>Welcome to Omnia. This Privacy Policy explains how we collect, use, and protect your information when you use our AI-powered task extraction service.</p>
+          
+          <h2>Information We Collect</h2>
+          
+          <h3>Meeting Transcripts</h3>
+          <p>When you upload meeting transcripts, we temporarily process the content to extract action items and tasks. The transcript content is:</p>
+          <ul>
+            <li>Processed using AI to identify tasks and deadlines</li>
+            <li>Not stored permanently on our servers</li>
+            <li>Used only for the purpose of task extraction</li>
+            <li>Deleted after processing is complete</li>
+          </ul>
+          
+          <h3>Google Account Information</h3>
+          <p>To create tasks in your Google Tasks, we require access to your Google account. We collect:</p>
+          <ul>
+            <li>Authentication tokens for Google Tasks API access</li>
+            <li>No personal information beyond what's necessary for task creation</li>
+            <li>Tokens are stored securely and can be revoked at any time</li>
+          </ul>
+          
+          <h2>How We Use Your Information</h2>
+          <p>We use the collected information to:</p>
+          <ul>
+            <li>Process meeting transcripts and extract action items</li>
+            <li>Create tasks in your Google Tasks account</li>
+            <li>Provide you with the core functionality of our service</li>
+            <li>Improve our AI algorithms and service quality</li>
+          </ul>
+          
+          <h2>Data Security</h2>
+          <p>We implement appropriate security measures to protect your information:</p>
+          <ul>
+            <li>All data transmission is encrypted using HTTPS</li>
+            <li>Authentication tokens are stored securely</li>
+            <li>Meeting transcripts are processed in memory and not permanently stored</li>
+            <li>Regular security audits and updates</li>
+          </ul>
+          
+          <h2>Third-Party Services</h2>
+          <p>We use the following third-party services:</p>
+          <ul>
+            <li><strong>Google APIs:</strong> For authentication and task creation</li>
+            <li><strong>Gemini AI:</strong> For intelligent task extraction from transcripts</li>
+          </ul>
+          
+          <h2>Your Rights</h2>
+          <p>You have the right to:</p>
+          <ul>
+            <li>Access your personal information</li>
+            <li>Request deletion of your data</li>
+            <li>Revoke Google account access at any time</li>
+            <li>Contact us with privacy concerns</li>
+          </ul>
+          
+          <h2>Contact Us</h2>
+          <p>If you have any questions about this Privacy Policy, please contact us at [contact information].</p>
         </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// Terms & Conditions page
+app.get('/terms-conditions', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Terms & Conditions - Omnia</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          color: #333;
+        }
+        
+        .container { 
+          max-width: 800px; 
+          margin: 0 auto; 
+          padding: 20px;
+          background: white;
+          min-height: 100vh;
+          box-shadow: 0 0 50px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px 0;
+          border-bottom: 1px solid #e9ecef;
+          margin-bottom: 40px;
+        }
+        
+        .logo {
+          font-size: 32px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        
+        .back-link {
+          text-decoration: none;
+          color: #4285f4;
+          font-size: 16px;
+          font-weight: 500;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        
+        .back-link:hover {
+          background: #f8f9fa;
+        }
+        
+        .content {
+          line-height: 1.8;
+          color: #333;
+        }
+        
+        .content h1 {
+          font-size: 32px;
+          font-weight: 700;
+          color: #1a1a1a;
+          margin-bottom: 24px;
+        }
+        
+        .content h2 {
+          font-size: 24px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 32px 0 16px 0;
+        }
+        
+        .content h3 {
+          font-size: 20px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 24px 0 12px 0;
+        }
+        
+        .content p {
+          margin-bottom: 16px;
+          font-size: 16px;
+        }
+        
+        .content ul {
+          margin-bottom: 16px;
+          padding-left: 24px;
+        }
+        
+        .content li {
+          margin-bottom: 8px;
+          font-size: 16px;
+        }
+        
+        @media (max-width: 768px) {
+          .container {
+            padding: 16px;
+          }
+          
+          .header {
+            flex-direction: column;
+            gap: 16px;
+            text-align: center;
+          }
+          
+          .content h1 {
+            font-size: 28px;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Omnia</div>
+          <a href="/" class="back-link">← Back to App</a>
+        </div>
+        
+        <div class="content">
+          <h1>Terms & Conditions</h1>
+          
+          <p><strong>Last updated: [Date]</strong></p>
+          
+          <p>By using Omnia, you agree to these Terms & Conditions. Please read them carefully before using our service.</p>
+          
+          <h2>Service Description</h2>
+          <p>Omnia is an AI-powered task extraction service that:</p>
+          <ul>
+            <li>Processes meeting transcripts to identify action items and deadlines</li>
+            <li>Creates tasks in your Google Tasks account</li>
+            <li>Provides an intuitive interface for reviewing and editing extracted tasks</li>
+          </ul>
+          
+          <h2>Acceptable Use</h2>
+          <p>You agree to use Omnia only for lawful purposes and in accordance with these Terms. You must not:</p>
+          <ul>
+            <li>Upload content that violates any applicable laws or regulations</li>
+            <li>Use the service to process confidential or sensitive information without proper authorization</li>
+            <li>Attempt to reverse engineer or compromise the service</li>
+            <li>Use the service for any commercial purposes without our written consent</li>
+          </ul>
+          
+          <h2>User Responsibilities</h2>
+          <p>As a user of Omnia, you are responsible for:</p>
+          <ul>
+            <li>Ensuring you have the right to upload and process meeting transcripts</li>
+            <li>Reviewing and validating extracted tasks before creation</li>
+            <li>Managing your Google account access and permissions</li>
+            <li>Maintaining the security of your account credentials</li>
+          </ul>
+          
+          <h2>Intellectual Property</h2>
+          <p>Omnia and its content are protected by intellectual property laws. You retain ownership of your meeting transcripts and created tasks.</p>
+          
+          <h2>Limitation of Liability</h2>
+          <p>Omnia is provided "as is" without warranties. We are not liable for:</p>
+          <ul>
+            <li>Inaccuracies in task extraction or deadline detection</li>
+            <li>Loss of data or service interruptions</li>
+            <li>Any damages arising from the use of our service</li>
+          </ul>
+          
+          <h2>Service Availability</h2>
+          <p>We strive to maintain high service availability but cannot guarantee uninterrupted access. We may:</p>
+          <ul>
+            <li>Perform maintenance that temporarily affects service</li>
+            <li>Update or modify features with reasonable notice</li>
+            <li>Suspend service for security or technical reasons</li>
+          </ul>
+          
+          <h2>Termination</h2>
+          <p>We may terminate or suspend your access to Omnia at any time for violations of these Terms or for any other reason at our discretion.</p>
+          
+          <h2>Changes to Terms</h2>
+          <p>We may update these Terms from time to time. Continued use of the service after changes constitutes acceptance of the new Terms.</p>
+          
+          <h2>Contact Information</h2>
+          <p>For questions about these Terms & Conditions, please contact us at [contact information].</p>
+        </div>
+      </div>
     </body>
     </html>
   `);
@@ -1147,9 +1961,10 @@ app.get('/', (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Google Tasks MVP running on port ${PORT}`);
+  console.log('Omnia running on port ' + PORT);
   console.log('Environment variables:');
   console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
   console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
   console.log('REDIRECT_URI:', process.env.REDIRECT_URI || 'NOT SET');
+  console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
 });
