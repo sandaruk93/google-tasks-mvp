@@ -329,7 +329,7 @@ app.get('/account', (req, res) => {
       <title>Account Management - Google Tasks MVP</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 600px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
         .logout { background: #dc3545; }
         .switch-account { background: #4285f4; }
@@ -495,7 +495,7 @@ app.get('/', (req, res) => {
       <title>Upload meeting transcript - Google Tasks MVP</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 500px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         input, textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; }
         textarea { height: 100px; resize: vertical; }
         button { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
@@ -643,31 +643,45 @@ app.get('/', (req, res) => {
           // Clear previous tasks
           taskList.innerHTML = '';
           
-          // Create task items
+          // Create task items in two columns
+          const taskGrid = document.createElement('div');
+          taskGrid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px;';
+          
+          // Responsive design for smaller screens
+          if (window.innerWidth < 768) {
+            taskGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 20px;';
+          }
+          
           tasks.forEach((task, index) => {
             const taskItem = document.createElement('div');
-            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+            taskItem.style.cssText = 'border: 1px solid #ddd; padding: 15px; border-radius: 6px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
             taskItem.innerHTML = \`
               <div style="display: flex; align-items: flex-start; gap: 12px;">
                 <div style="margin-top: 8px;">
-                  <input type="checkbox" id="task\${index}" checked style="width: 18px; height: 18px; cursor: pointer;" onchange="updateConfirmButton()">
+                  <input type="checkbox" id="task\${index}" style="width: 18px; height: 18px; cursor: pointer;" onchange="updateConfirmButton()">
                 </div>
                 <div style="flex: 1;">
                   <textarea 
                     id="taskText\${index}" 
-                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; min-height: 80px; font-size: 14px; line-height: 1.4; font-family: inherit;"
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; resize: none; height: 120px; font-size: 14px; line-height: 1.4; font-family: inherit;"
                     oninput="updateTaskText(\${index})"
                     placeholder="Edit task description here..."
+                    maxlength="${MAX_TASK_LENGTH}"
                   >\${task}</textarea>
                 </div>
               </div>
             \`;
-            taskList.appendChild(taskItem);
+            taskGrid.appendChild(taskItem);
           });
+          
+          taskList.appendChild(taskGrid);
           
           // Show review section
           taskReviewSection.style.display = 'block';
           confirmBtn.style.display = 'inline-block';
+          
+          // Initialize the select all button text
+          initializeSelectAllButton();
           
           // Scroll to review section
           taskReviewSection.scrollIntoView({ behavior: 'smooth' });
@@ -688,6 +702,14 @@ app.get('/', (req, res) => {
           
           selectAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
           updateConfirmButton();
+        }
+        
+        // Initialize the select all button text when tasks are displayed
+        function initializeSelectAllButton() {
+          const checkboxes = document.querySelectorAll('#taskList input[type="checkbox"]');
+          const selectAllBtn = document.getElementById('selectAllBtn');
+          const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+          selectAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
         }
         
         function updateConfirmButton() {
