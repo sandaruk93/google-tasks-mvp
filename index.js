@@ -35,7 +35,7 @@ const upload = multer({
   }
 });
 
-const SCOPES = ['https://www.googleapis.com/auth/tasks'];
+const SCOPES = ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/userinfo.email'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 const MAX_TASK_LENGTH = 8192; // Google Tasks character limit
 
@@ -536,6 +536,21 @@ app.get('/account', async (req, res) => {
           color: #1a1a1a;
           margin: 0;
         }
+        
+        .logo {
+          font-size: 24px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .logo:hover {
+          transform: scale(1.05);
+        }
         .user-info {
           background: #f8f9fa;
           padding: 24px;
@@ -719,6 +734,7 @@ app.get('/account', async (req, res) => {
         <div class="header">
           <div style="display: flex; align-items: center; gap: 20px;">
             <a href="/" class="back-btn">← Back</a>
+            <a href="/" class="logo">Omnia</a>
             <h1 class="page-title">Account</h1>
           </div>
         </div>
@@ -743,19 +759,19 @@ app.get('/account', async (req, res) => {
             </div>
             
             <div class="action-card">
-              <div class="action-icon">🗑️</div>
-              <h3 class="action-title">Remove Account</h3>
-              <p class="action-subtitle">Completely remove this account from the app</p>
-              <button onclick="removeAccount()" class="action-btn outline-danger">Remove Account</button>
-            </div>
-            
-            <div class="action-card">
               <div class="action-icon">🚪</div>
               <h3 class="action-title">Logout</h3>
               <p class="action-subtitle">Sign out from your current session</p>
               <form method="POST" action="/logout" style="display: inline;">
                 <button type="submit" class="action-btn danger">Logout</button>
               </form>
+            </div>
+            
+            <div class="action-card">
+              <div class="action-icon">🗑️</div>
+              <h3 class="action-title">Delete Account</h3>
+              <p class="action-subtitle">Permanently delete this account and all data</p>
+              <button onclick="removeAccount()" class="action-btn outline-danger">Delete Account</button>
             </div>
           </div>
         </div>
@@ -849,6 +865,12 @@ app.get('/', (req, res) => {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .logo:hover {
+          transform: scale(1.05);
         }
         
         .nav-menu {
@@ -1621,7 +1643,7 @@ app.get('/', (req, res) => {
       <div class="container">
         <div class="header">
           <div style="display: flex; align-items: center; gap: 20px;">
-            <div class="logo">Omnia</div>
+            <a href="/" class="logo">Omnia</a>
           </div>
           <div class="nav-menu">
             <div class="dropdown">
@@ -1734,6 +1756,12 @@ app.get('/privacy-policy', (req, res) => {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .logo:hover {
+          transform: scale(1.05);
         }
         
         .back-link {
@@ -1813,7 +1841,7 @@ app.get('/privacy-policy', (req, res) => {
         <div class="header">
           <div style="display: flex; align-items: center; gap: 20px;">
             <a href="/" class="back-link">← Back</a>
-            <div class="logo">Omnia</div>
+            <a href="/" class="logo">Omnia</a>
           </div>
         </div>
         
@@ -1933,6 +1961,12 @@ app.get('/terms-conditions', (req, res) => {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .logo:hover {
+          transform: scale(1.05);
         }
         
         .back-link {
@@ -2012,7 +2046,7 @@ app.get('/terms-conditions', (req, res) => {
         <div class="header">
           <div style="display: flex; align-items: center; gap: 20px;">
             <a href="/" class="back-link">← Back</a>
-            <div class="logo">Omnia</div>
+            <a href="/" class="logo">Omnia</a>
           </div>
         </div>
         
