@@ -152,15 +152,22 @@ app.post('/process-transcript', upload.single('transcript'), async (req, res) =>
 
 // Handle task confirmation and creation
 app.post('/confirm-tasks', async (req, res) => {
+  console.log('confirm-tasks endpoint called');
+  console.log('Request body:', req.body);
+  
   const userTokens = req.cookies && req.cookies.userTokens;
+  console.log('User tokens present:', !!userTokens);
   
   if (!userTokens) {
+    console.log('No user tokens found');
     return res.json({ success: false, message: 'Not authenticated. Please sign in again.' });
   }
 
   const { tasks } = req.body;
+  console.log('Tasks received:', tasks);
   
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    console.log('Invalid tasks data:', tasks);
     return res.json({ success: false, message: 'No tasks provided for creation.' });
   }
 
@@ -173,16 +180,22 @@ app.post('/confirm-tasks', async (req, res) => {
     const createdTasks = [];
     
     for (const task of tasks) {
+      console.log('Processing task:', task);
       if (task.trim()) {
         try {
-          await tasksAPI.tasks.insert({
+          console.log('Creating task with title:', task.trim());
+          const result = await tasksAPI.tasks.insert({
             tasklist: '@default',
             requestBody: { title: task.trim() },
           });
+          console.log('Task created successfully:', result.data);
           createdTasks.push(task);
         } catch (err) {
           console.error('Error creating task:', err.message);
+          console.error('Full error:', err);
         }
+      } else {
+        console.log('Skipping empty task');
       }
     }
     
@@ -708,6 +721,8 @@ app.get('/', (req, res) => {
             }
           });
           
+          console.log('Selected tasks to create:', selectedTasks);
+          
           if (selectedTasks.length === 0) {
             showToast('Please enter text for at least one task', 'error');
             return;
@@ -725,8 +740,12 @@ app.get('/', (req, res) => {
             },
             body: JSON.stringify({ tasks: selectedTasks })
           })
-          .then(response => response.json())
+          .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+          })
           .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
               showToast(data.message, 'success');
               // Hide review section
@@ -736,6 +755,7 @@ app.get('/', (req, res) => {
             }
           })
           .catch(error => {
+            console.error('Error in confirmTasks:', error);
             showToast('Network error. Please try again.', 'error');
           })
           .finally(() => {
