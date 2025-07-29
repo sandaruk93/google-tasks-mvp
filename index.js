@@ -174,6 +174,47 @@ app.post('/process-transcript', upload.single('transcript'), async (req, res) =>
   }
 });
 
+// Handle text processing
+app.post('/process-text', async (req, res) => {
+  const userTokens = req.cookies && req.cookies.userTokens;
+  
+  if (!userTokens) {
+    return res.json({ success: false, message: 'Not authenticated. Please sign in again.' });
+  }
+
+  const { text } = req.body;
+  
+  if (!text || text.trim().length === 0) {
+    return res.json({ success: false, message: 'No text provided' });
+  }
+
+  try {
+    console.log('Text received, length:', text.length);
+    
+    // Extract action items using Gemini AI
+    const actionItems = await extractActionItems(text);
+    
+    if (actionItems.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'Text processed successfully, but no action items were found.',
+        tasks: []
+      });
+    }
+    
+    // Return extracted tasks for user review
+    res.json({ 
+      success: true, 
+      message: `Found ${actionItems.length} potential action items. Please review and select the ones you want to add.`,
+      tasks: actionItems
+    });
+    
+  } catch (err) {
+    console.error('Error processing text:', err);
+    res.json({ success: false, message: `Error processing text: ${err.message}` });
+  }
+});
+
 // Handle task confirmation and creation
 app.post('/confirm-tasks', async (req, res) => {
   console.log('confirm-tasks endpoint called');
@@ -505,36 +546,107 @@ app.get('/account', async (req, res) => {
           padding: 40px 20px; 
           background: white; 
           min-height: 100vh; 
-          box-shadow: 0 0 20px rgba(0,0,0,0.1); 
+          box-shadow: 0 0 20px rgba(0,0,0,0.1);
+          margin-top: 70px;
         }
         .header {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: white;
+          border-bottom: 1px solid #e9ecef;
+          z-index: 1000;
+          padding: 0 20px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .nav-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          height: 70px;
+        }
+        
+        .nav-left {
           display: flex;
           align-items: center;
-          margin-bottom: 40px;
-          padding-bottom: 20px;
-          border-bottom: 1px solid #e9ecef;
+          gap: 20px;
         }
-        .back-btn {
+        
+        .nav-right {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+        
+        .dropdown {
+          position: relative;
+          display: inline-block;
+        }
+        
+        .dropdown-btn {
           background: none;
           border: none;
           color: #4285f4;
-          font-size: 16px;
+          font-size: 14px;
+          font-weight: 500;
           cursor: pointer;
           padding: 8px 12px;
           border-radius: 6px;
-          text-decoration: none;
+          transition: all 0.2s ease;
           display: flex;
           align-items: center;
-          transition: all 0.2s ease;
+          gap: 6px;
         }
-        .back-btn:hover {
+        
+        .dropdown-btn:hover {
           background: #f8f9fa;
         }
-        .page-title {
-          font-size: 28px;
-          font-weight: 600;
-          color: #1a1a1a;
-          margin: 0;
+        
+        .dropdown-content {
+          display: none;
+          position: absolute;
+          right: 0;
+          background: white;
+          min-width: 200px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+          border-radius: 8px;
+          z-index: 1000;
+          overflow: hidden;
+        }
+        
+        .dropdown-content a {
+          color: #333;
+          padding: 12px 16px;
+          text-decoration: none;
+          display: block;
+          transition: background 0.2s ease;
+          font-size: 14px;
+        }
+        
+        .dropdown-content a:hover {
+          background: #f8f9fa;
+        }
+        
+        .dropdown:hover .dropdown-content {
+          display: block;
+        }
+        
+        .account-link {
+          text-decoration: none;
+          color: #4285f4;
+          font-size: 14px;
+          font-weight: 500;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+        }
+        
+        .account-link:hover {
+          background: #f8f9fa;
         }
         
         .logo {
@@ -732,10 +844,22 @@ app.get('/account', async (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div style="display: flex; align-items: center; gap: 20px;">
-            <a href="/" class="back-btn">← Back</a>
-            <a href="/" class="logo">Omnia</a>
-            <h1 class="page-title">Account</h1>
+          <div class="nav-container">
+            <div class="nav-left">
+              <a href="/" class="logo">Omnia</a>
+            </div>
+            <div class="nav-right">
+              <div class="dropdown">
+                <button class="dropdown-btn">
+                  About ▼
+                </button>
+                <div class="dropdown-content">
+                  <a href="/privacy-policy">Privacy Policy</a>
+                  <a href="/terms-conditions">Terms & Conditions</a>
+                </div>
+              </div>
+              <a href="/account" class="account-link">Account</a>
+            </div>
           </div>
         </div>
         
@@ -847,15 +971,40 @@ app.get('/', (req, res) => {
           background: white;
           min-height: 100vh;
           box-shadow: 0 0 50px rgba(0,0,0,0.1);
+          margin-top: 70px;
         }
         
         .header {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: white;
+          border-bottom: 1px solid #e9ecef;
+          z-index: 1000;
+          padding: 0 20px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .nav-container {
+          max-width: 1200px;
+          margin: 0 auto;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 20px 0;
-          border-bottom: 1px solid #e9ecef;
-          margin-bottom: 40px;
+          height: 70px;
+        }
+        
+        .nav-left {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+        
+        .nav-right {
+          display: flex;
+          align-items: center;
+          gap: 20px;
         }
         
         .logo {
@@ -969,6 +1118,96 @@ app.get('/', (req, res) => {
           color: #666;
           margin-bottom: 32px;
           line-height: 1.6;
+        }
+        
+        .input-options {
+          margin-bottom: 32px;
+        }
+        
+        .option-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 24px;
+          border-bottom: 1px solid #e9ecef;
+          padding-bottom: 16px;
+        }
+        
+        .tab-btn {
+          background: none;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          color: #6c757d;
+          border: 1px solid transparent;
+        }
+        
+        .tab-btn:hover {
+          background: #f8f9fa;
+          color: #4285f4;
+        }
+        
+        .tab-btn.active {
+          background: #4285f4;
+          color: white;
+          border-color: #4285f4;
+        }
+        
+        .tab-content {
+          animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .paste-section {
+          background: white;
+          border: 2px dashed #e9ecef;
+          border-radius: 16px;
+          padding: 24px;
+          transition: all 0.3s ease;
+        }
+        
+        .paste-section:hover {
+          border-color: #4285f4;
+          background: #f0f4ff;
+        }
+        
+        .paste-area {
+          position: relative;
+        }
+        
+        .transcript-textarea {
+          width: 100%;
+          border: none;
+          outline: none;
+          resize: vertical;
+          font-family: inherit;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #333;
+          background: transparent;
+          min-height: 200px;
+        }
+        
+        .transcript-textarea::placeholder {
+          color: #adb5bd;
+        }
+        
+        .char-counter {
+          position: absolute;
+          bottom: -8px;
+          right: 0;
+          font-size: 12px;
+          color: #6c757d;
+          background: white;
+          padding: 4px 8px;
+          border-radius: 4px;
         }
         
         .upload-section {
@@ -1285,7 +1524,6 @@ app.get('/', (req, res) => {
           const fileInfo = document.getElementById('fileInfo');
           const fileName = document.getElementById('fileName');
           const fileSize = document.getElementById('fileSize');
-          const submitBtn = document.getElementById('submitBtn');
           
           if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
@@ -1297,14 +1535,12 @@ app.get('/', (req, res) => {
             
             if (file.size > maxSize) {
               showToast(\`File too large (\${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum 10MB allowed.\`, 'error');
-              submitBtn.disabled = true;
-            } else {
-              submitBtn.disabled = false;
             }
           } else {
             fileInfo.style.display = 'none';
-            submitBtn.disabled = true;
           }
+          
+          updateProcessButtonState();
         }
         
         function showToast(message, type = 'info') {
@@ -1328,7 +1564,66 @@ app.get('/', (req, res) => {
           }, 3000);
         }
         
+        function switchTab(tabName) {
+          // Hide all tab contents
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.style.display = 'none';
+          });
+          
+          // Remove active class from all tabs
+          document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+          });
+          
+          // Show selected tab content
+          document.getElementById(tabName + 'TabContent').style.display = 'block';
+          
+          // Add active class to selected tab
+          document.getElementById(tabName + 'Tab').classList.add('active');
+          
+          // Update process button state
+          updateProcessButtonState();
+        }
+        
+        function updateCharCount() {
+          const textarea = document.getElementById('transcriptText');
+          const charCount = document.getElementById('charCount');
+          const count = textarea.value.length;
+          charCount.textContent = count.toLocaleString();
+          
+          // Update process button state
+          updateProcessButtonState();
+        }
+        
+        function updateProcessButtonState() {
+          const submitBtn = document.getElementById('submitBtn');
+          const fileInput = document.getElementById('transcriptFile');
+          const textarea = document.getElementById('transcriptText');
+          const activeTab = document.querySelector('.tab-btn.active').id;
+          
+          let hasContent = false;
+          
+          if (activeTab === 'uploadTab') {
+            hasContent = fileInput.files.length > 0;
+          } else if (activeTab === 'pasteTab') {
+            hasContent = textarea.value.trim().length > 0;
+          }
+          
+          submitBtn.disabled = !hasContent;
+        }
+        
         function processTranscript() {
+          const activeTab = document.querySelector('.tab-btn.active').id;
+          const submitBtn = document.getElementById('submitBtn');
+          
+          if (activeTab === 'uploadTab') {
+            processUploadedFile();
+          } else if (activeTab === 'pasteTab') {
+            processPastedText();
+          }
+        }
+        
+        function processUploadedFile() {
           const fileInput = document.getElementById('transcriptFile');
           const submitBtn = document.getElementById('submitBtn');
           
@@ -1367,6 +1662,51 @@ app.get('/', (req, res) => {
               // Reset file input
               fileInput.value = '';
               document.getElementById('fileInfo').style.display = 'none';
+            } else {
+              showToast(data.message, 'error');
+            }
+          })
+          .catch(error => {
+            showToast('Network error. Please try again.', 'error');
+          })
+          .finally(() => {
+            // Reset loading state
+            submitBtn.textContent = 'Process';
+            submitBtn.disabled = false;
+          });
+        }
+        
+        function processPastedText() {
+          const textarea = document.getElementById('transcriptText');
+          const submitBtn = document.getElementById('submitBtn');
+          const text = textarea.value.trim();
+          
+          if (!text) {
+            showToast('Please paste some text', 'error');
+            return;
+          }
+          
+          // Show loading state
+          submitBtn.textContent = 'Processing...';
+          submitBtn.disabled = true;
+          
+          // Submit text via AJAX
+          fetch('/process-text', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: text })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showToast(data.message, 'success');
+              // Show task review section
+              displayTaskReview(data.tasks);
+              // Clear textarea
+              textarea.value = '';
+              updateCharCount();
             } else {
               showToast(data.message, 'error');
             }
@@ -1642,49 +1982,77 @@ app.get('/', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div style="display: flex; align-items: center; gap: 20px;">
-            <a href="/" class="logo">Omnia</a>
-          </div>
-          <div class="nav-menu">
-            <div class="dropdown">
-              <button class="dropdown-btn">
-                About ▼
-              </button>
-              <div class="dropdown-content">
-                <a href="/privacy-policy">Privacy Policy</a>
-                <a href="/terms-conditions">Terms & Conditions</a>
-              </div>
+          <div class="nav-container">
+            <div class="nav-left">
+              <a href="/" class="logo">Omnia</a>
             </div>
-            <a href="/account" class="account-link">Account</a>
+            <div class="nav-right">
+              <div class="dropdown">
+                <button class="dropdown-btn">
+                  About ▼
+                </button>
+                <div class="dropdown-content">
+                  <a href="/privacy-policy">Privacy Policy</a>
+                  <a href="/terms-conditions">Terms & Conditions</a>
+                </div>
+              </div>
+              <a href="/account" class="account-link">Account</a>
+            </div>
           </div>
         </div>
         
         <div class="main-content">
           <div class="hero-section">
             <h1 class="hero-title">AI-Powered Task Extraction</h1>
-            <p class="hero-subtitle">Upload your meeting transcript and let our AI identify action items, deadlines, and create tasks in your Google Tasks automatically.</p>
+            <p class="hero-subtitle">Upload your meeting transcript or paste the text directly. Our AI will identify action items, deadlines, and create tasks in your Google Tasks automatically.</p>
           </div>
           
-          <div class="upload-section" id="uploadSection">
-            <input 
-              type="file" 
-              id="transcriptFile" 
-              name="transcript" 
-              accept=".pdf"
-              style="display: none;"
-              onchange="updateFileInfo()"
-            />
-            <div class="upload-area" onclick="document.getElementById('transcriptFile').click();">
-              <div class="upload-icon">📄</div>
-              <div class="upload-title">Upload Meeting Transcript</div>
-              <div class="upload-subtitle">Click to select a PDF file or drag and drop</div>
-              <div class="upload-info">Maximum file size: 10MB</div>
+          <div class="input-options">
+            <div class="option-tabs">
+              <button class="tab-btn active" onclick="switchTab('upload')" id="uploadTab">📄 Upload PDF</button>
+              <button class="tab-btn" onclick="switchTab('paste')" id="pasteTab">📝 Paste Text</button>
             </div>
             
-            <div id="fileInfo" class="file-info">
-              <div style="font-weight: 600; margin-bottom: 8px;">Selected file:</div>
-              <div id="fileName" style="margin-bottom: 4px;"></div>
-              <div id="fileSize" style="color: #666; font-size: 14px;"></div>
+            <div class="tab-content" id="uploadTabContent">
+              <div class="upload-section" id="uploadSection">
+                <input 
+                  type="file" 
+                  id="transcriptFile" 
+                  name="transcript" 
+                  accept=".pdf"
+                  style="display: none;"
+                  onchange="updateFileInfo()"
+                />
+                <div class="upload-area" onclick="document.getElementById('transcriptFile').click();">
+                  <div class="upload-icon">📄</div>
+                  <div class="upload-title">Upload Meeting Transcript</div>
+                  <div class="upload-subtitle">Click to select a PDF file or drag and drop</div>
+                  <div class="upload-info">Maximum file size: 10MB</div>
+                </div>
+                
+                <div id="fileInfo" class="file-info">
+                  <div style="font-weight: 600; margin-bottom: 8px;">Selected file:</div>
+                  <div id="fileName" style="margin-bottom: 4px;"></div>
+                  <div id="fileSize" style="color: #666; font-size: 14px;"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="tab-content" id="pasteTabContent" style="display: none;">
+              <div class="paste-section">
+                <div class="paste-area">
+                  <textarea 
+                    id="transcriptText" 
+                    placeholder="Paste your meeting transcript here..."
+                    rows="12"
+                    class="transcript-textarea"
+                    oninput="updateCharCount()"
+                  ></textarea>
+                  <div class="char-counter">
+                    <span id="charCount">0</span> characters
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -1839,9 +2207,22 @@ app.get('/privacy-policy', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div style="display: flex; align-items: center; gap: 20px;">
-            <a href="/" class="back-link">← Back</a>
-            <a href="/" class="logo">Omnia</a>
+          <div class="nav-container">
+            <div class="nav-left">
+              <a href="/" class="logo">Omnia</a>
+            </div>
+            <div class="nav-right">
+              <div class="dropdown">
+                <button class="dropdown-btn">
+                  About ▼
+                </button>
+                <div class="dropdown-content">
+                  <a href="/privacy-policy">Privacy Policy</a>
+                  <a href="/terms-conditions">Terms & Conditions</a>
+                </div>
+              </div>
+              <a href="/account" class="account-link">Account</a>
+            </div>
           </div>
         </div>
         
@@ -2044,9 +2425,22 @@ app.get('/terms-conditions', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <div style="display: flex; align-items: center; gap: 20px;">
-            <a href="/" class="back-link">← Back</a>
-            <a href="/" class="logo">Omnia</a>
+          <div class="nav-container">
+            <div class="nav-left">
+              <a href="/" class="logo">Omnia</a>
+            </div>
+            <div class="nav-right">
+              <div class="dropdown">
+                <button class="dropdown-btn">
+                  About ▼
+                </button>
+                <div class="dropdown-content">
+                  <a href="/privacy-policy">Privacy Policy</a>
+                  <a href="/terms-conditions">Terms & Conditions</a>
+                </div>
+              </div>
+              <a href="/account" class="account-link">Account</a>
+            </div>
           </div>
         </div>
         
