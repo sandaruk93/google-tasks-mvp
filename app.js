@@ -63,6 +63,16 @@ app.use(mongoSanitize());
 // Serve static files
 app.use(express.static('public'));
 
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy', 
+        service: 'omnia-google-tasks-bot',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0'
+    });
+});
+
 // Serve main page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
