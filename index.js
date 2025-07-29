@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { google } = require('googleapis');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const GeminiHelper = require('./utils/geminiHelper');
 require('dotenv').config();
 
 const app = express();
@@ -12,11 +12,17 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-// Check if Gemini API key is set
-if (!process.env.GEMINI_API_KEY) {
+// Initialize Gemini AI with improved error handling
+let geminiHelper = null;
+if (process.env.GEMINI_API_KEY) {
+  try {
+    geminiHelper = new GeminiHelper(process.env.GEMINI_API_KEY);
+    console.log('Gemini AI initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Gemini AI:', error.message);
+    geminiHelper = null;
+  }
+} else {
   console.warn('GEMINI_API_KEY not found in environment variables. Task extraction will fall back to regex patterns.');
 }
 
@@ -74,6 +80,31 @@ app.get('/oauth2callback', async (req, res) => {
   } catch (err) {
     console.error('OAuth error:', err.message);
     res.status(500).send(`OAuth2 error: ${err.message}`);
+  }
+});
+
+// Health check endpoint for Gemini API
+app.get('/api/gemini-health', async (req, res) => {
+  try {
+    if (!geminiHelper) {
+      return res.json({
+        status: 'unavailable',
+        message: 'Gemini API not configured',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const health = await geminiHelper.healthCheck();
+    res.json({
+      ...health,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -326,107 +357,18 @@ app.post('/confirm-tasks', async (req, res) => {
 
 // Function to extract action items from transcript text using Gemini AI
 async function extractActionItems(text) {
+  if (!geminiHelper) {
+    console.log('No Gemini helper available, using fallback extraction');
+    return extractActionItemsFallback(text);
+  }
+
   try {
     console.log('Using Gemini AI to extract action items...');
-    
-    // Check if Gemini API key is available
-    if (!process.env.GEMINI_API_KEY) {
-      console.log('Gemini API key not found, falling back to regex extraction');
-      return extractActionItemsFallback(text);
-    }
-    
-    // Initialize Gemini model
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    // Create prompt for task extraction with deadline detection
-    const prompt = 'You are an expert at identifying action items and tasks from meeting transcripts. ' +
-      'Please analyze the following meeting transcript and extract all action items, tasks, and responsibilities that were assigned or mentioned. Focus on: ' +
-      '1. Tasks assigned to specific people ' +
-      '2. Action items that need to be completed ' +
-      '3. Follow-up items ' +
-      '4. Deadlines or time-sensitive tasks ' +
-      '5. Responsibilities mentioned ' +
-      'For each action item, identify if there is a specific deadline or time reference mentioned. ' +
-      'Return ONLY a JSON array of objects, where each object has: ' +
-      '- "task": a clear, concise task description ' +
-      '- "deadline": the deadline in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) if mentioned, or null if no deadline ' +
-      '- "deadlineText": the original deadline text as mentioned in the transcript (e.g., "by Friday", "tomorrow", "next week") ' +
-      'Example output format: [{"task": "Review the quarterly budget", "deadline": "2024-01-15T17:00:00", "deadlineText": "by Friday"}, {"task": "Schedule follow-up meeting", "deadline": null, "deadlineText": null}] ' +
-      'Meeting transcript: ' + text;
-
-    // Generate response from Gemini
-    console.log('Calling Gemini API...');
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const geminiResponse = response.text();
-    
-    console.log('Gemini response received, length:', geminiResponse.length);
-    console.log('Gemini response:', geminiResponse);
-    
-    // Parse the JSON response
-    let actionItems = [];
-    try {
-      // Clean up the response and parse JSON
-      const cleanedText = geminiResponse.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      console.log('Cleaned response for JSON parsing:', cleanedText);
-      actionItems = JSON.parse(cleanedText);
-      
-      // Ensure it's an array
-      if (!Array.isArray(actionItems)) {
-        console.error('Gemini response is not an array:', actionItems);
-        console.error('Response type:', typeof actionItems);
-        return [];
-      }
-      
-      // Filter out empty or invalid items and convert to new format
-      actionItems = actionItems.filter(item => {
-        if (!item || typeof item !== 'object') {
-          console.log('Skipping invalid item:', item);
-          return false;
-        }
-        
-        // Handle both old string format and new object format
-        if (typeof item === 'string') {
-          // Convert old string format to new object format
-          return item.trim().length > 5 && item.trim().length < 300;
-        } else if (item.task) {
-          // New object format
-          return item.task.trim().length > 5 && item.task.trim().length < 300;
-        }
-        return false;
-      }).map(item => {
-        // Convert to consistent object format
-        if (typeof item === 'string') {
-          return {
-            task: item.trim(),
-            deadline: null,
-            deadlineText: null
-          };
-        } else {
-          return {
-            task: item.task.trim(),
-            deadline: item.deadline || null,
-            deadlineText: item.deadlineText || null
-          };
-        }
-      });
-      
-      console.log('Extracted action items:', actionItems);
-      return actionItems;
-      
-    } catch (parseError) {
-      console.error('Error parsing Gemini response:', parseError);
-      console.error('Raw response:', geminiResponse);
-      console.log('Falling back to regex extraction due to parsing error');
-      return extractActionItemsFallback(text);
-    }
-    
+    const actionItems = await geminiHelper.extractActionItems(text);
+    return actionItems;
   } catch (error) {
-    console.error('Error using Gemini AI:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
-    console.log('Falling back to regex extraction due to Gemini error');
-    // Fallback to basic regex extraction if Gemini fails
+    console.error('Error in extractActionItems:', error);
+    console.log('Falling back to regex extraction');
     return extractActionItemsFallback(text);
   }
 }
