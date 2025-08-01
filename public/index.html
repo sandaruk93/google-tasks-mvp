@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet Tasks Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .auth-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .auth-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .auth-button:hover {
+            background: #5a6fd8;
+        }
+
+        .task-section {
+            display: none;
+        }
+
+        .task-section.active {
+            display: block;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .task-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+
+        .task-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .submit-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background 0.3s ease;
+        }
+
+        .submit-button:hover {
+            background: #5a6fd8;
+        }
+
+        .submit-button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .results h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .task-list {
+            list-style: none;
+        }
+
+        .task-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .add-task-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .add-task-btn:hover {
+            background: #218838;
+        }
+
+        .add-task-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        .toast.info {
+            background: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Google Meet Tasks Bot</h1>
+            <p>Extract action items from your meeting transcripts and add them to Google Tasks</p>
+        </div>
+
+        <div class="content">
+            <div class="auth-section" id="authSection">
+                <h3>Get Started</h3>
+                <p>Sign in with your Google account to start extracting tasks from your meeting transcripts.</p>
+                <button class="auth-button" onclick="signIn()">Sign In with Google</button>
+            </div>
+
+            <div class="task-section" id="taskSection">
+                <div class="input-section">
+                    <h3>Enter your transcript or meeting notes</h3>
+                    <textarea 
+                        class="task-input" 
+                        id="taskInput" 
+                        placeholder="Paste your meeting transcript or notes here..."
+                    ></textarea>
+                    <button class="submit-button" id="submitBtn" onclick="processText()">Extract Tasks</button>
+                </div>
+
+                <div class="results" id="results" style="display: none;">
+                    <h3>Extracted Tasks</h3>
+                    <ul class="task-list" id="taskList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const authSection = document.getElementById('authSection');
+        const taskSection = document.getElementById('taskSection');
+        const taskInput = document.getElementById('taskInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const results = document.getElementById('results');
+        const taskList = document.getElementById('taskList');
+
+        // Check authentication status on page load
+        window.onload = function() {
+            checkAuthStatus();
+        };
+
+        function signIn() {
+            window.location.href = '/auth';
+        }
+
+        function checkAuthStatus() {
+            // Check if user is authenticated by trying to access a protected endpoint
+            fetch('/add-task', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ task: 'test' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success || data.message === 'Please authenticate first') {
+                    // User is authenticated or can authenticate
+                    authSection.style.display = 'none';
+                    taskSection.style.display = 'block';
+                } else {
+                    // User needs to authenticate
+                    authSection.style.display = 'block';
+                    taskSection.style.display = 'none';
+                }
+            })
+            .catch(() => {
+                // Error occurred, show auth section
+                authSection.style.display = 'block';
+                taskSection.style.display = 'none';
+            });
+        }
+
+        async function processText() {
+            const text = taskInput.value.trim();
+            
+            if (!text) {
+                showToast('Please enter some text', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/process-text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    displayTasks(result.tasks);
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('An error occurred. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Extract Tasks';
+            }
+        }
+
+        function displayTasks(tasks) {
+            taskList.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                taskList.innerHTML = '<li>No tasks found in the text.</li>';
+            } else {
+                tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = 'task-item';
+                    li.innerHTML = `
+                        <span>${task}</span>
+                        <button class="add-task-btn" onclick="addTask('${task.replace(/'/g, "\\'")}')">Add to Tasks</button>
+                    `;
+                    taskList.appendChild(li);
+                });
+            }
+            
+            results.style.display = 'block';
+        }
+
+        async function addTask(task) {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Adding...';
+
+            try {
+                const response = await fetch('/add-task', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ task })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Task added successfully!', 'success');
+                    button.textContent = 'Added';
+                    button.style.background = '#6c757d';
+                } else {
+                    showToast(result.message, 'error');
+                    button.disabled = false;
+                    button.textContent = 'Add to Tasks';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('An error occurred while adding the task.', 'error');
+                button.disabled = false;
+                button.textContent = 'Add to Tasks';
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const existingToasts = document.querySelectorAll('.toast');
+            existingToasts.forEach(toast => toast.remove());
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 100);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Handle Enter key in textarea
+        taskInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                processText();
+            }
+        });
+    </script>
+</body>
+</html> 
