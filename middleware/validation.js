@@ -84,8 +84,30 @@ const validateTask = [
     .trim()
     .isLength({ min: 1, max: 8192 })
     .withMessage('Task must be between 1 and 8192 characters')
-    .matches(/^[^<>{}]*$/)
-    .withMessage('Task contains invalid characters'),
+    .custom((value) => {
+      // Check for XSS attempts
+      const xssPatterns = [
+        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+        /javascript:/gi,
+        /on\w+\s*=/gi,
+        /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
+        /<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi,
+        /<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi
+      ];
+      
+      for (const pattern of xssPatterns) {
+        if (pattern.test(value)) {
+          throw new Error('Task contains potentially malicious content');
+        }
+      }
+      
+      // Check for HTML tags
+      if (/<[^>]*>/.test(value)) {
+        throw new Error('Task contains HTML tags which are not allowed');
+      }
+      
+      return true;
+    }),
   handleValidationErrors
 ];
 
@@ -95,8 +117,25 @@ const validateTextProcessing = [
     .trim()
     .isLength({ min: 1, max: 50000 })
     .withMessage('Text must be between 1 and 50000 characters')
-    .matches(/^[^<>{}]*$/)
-    .withMessage('Text contains invalid characters'),
+    .custom((value) => {
+      // Check for XSS attempts
+      const xssPatterns = [
+        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+        /javascript:/gi,
+        /on\w+\s*=/gi,
+        /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
+        /<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi,
+        /<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi
+      ];
+      
+      for (const pattern of xssPatterns) {
+        if (pattern.test(value)) {
+          throw new Error('Text contains potentially malicious content');
+        }
+      }
+      
+      return true;
+    }),
   handleValidationErrors
 ];
 

@@ -63,6 +63,20 @@ const authenticateUser = async (req, res, next) => {
       });
     }
 
+    // Validate token format (basic check)
+    if (typeof tokens.access_token !== 'string' || tokens.access_token.length < 10) {
+      logAuthentication('failed', {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        reason: 'Invalid token format'
+      });
+      
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication tokens'
+      });
+    }
+
     // Store tokens in request for later use
     req.userTokens = tokens;
     req.userId = tokens.user_id || 'unknown';
@@ -137,16 +151,32 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
   
-  // Check for CSRF token in headers
-  const csrfToken = req.get('X-CSRF-Token');
+  // Check for CSRF token in headers or body
+  const csrfToken = req.get('X-CSRF-Token') || req.body._csrf;
   const sessionToken = req.cookies && req.cookies.csrfToken;
   
-  if (!csrfToken || !sessionToken || csrfToken !== sessionToken) {
+  if (!csrfToken || !sessionToken) {
     logSecurityEvent('csrf_attempt', {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       method: req.method,
-      path: req.path
+      path: req.path,
+      reason: 'Missing CSRF token'
+    });
+    
+    return res.status(403).json({
+      success: false,
+      message: 'CSRF token validation failed'
+    });
+  }
+  
+  if (csrfToken !== sessionToken) {
+    logSecurityEvent('csrf_attempt', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      method: req.method,
+      path: req.path,
+      reason: 'CSRF token mismatch'
     });
     
     return res.status(403).json({
@@ -232,8 +262,11 @@ const securityHeaders = (req, res, next) => {
   // Permissions policy
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
   
-  // Remove server information
+  // Remove X-Powered-By header
   res.removeHeader('X-Powered-By');
+  
+  // Content Security Policy
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-src 'none'; object-src 'none'");
   
   next();
 };

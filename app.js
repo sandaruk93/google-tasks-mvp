@@ -23,7 +23,8 @@ const {
   requestLogger, 
   errorHandler, 
   securityHeaders: customSecurityHeaders,
-  validateSession 
+  validateSession,
+  csrfProtection 
 } = require('./middleware/security');
 
 const { 
@@ -76,6 +77,67 @@ app.get('/health', (req, res) => {
 // Serve main page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Login route
+app.get('/login', (req, res) => {
+    const oAuth2Client = getOAuth2Client();
+    const authUrl = oAuth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: SCOPES,
+        prompt: 'consent' // Force consent to get refresh token
+    });
+    res.redirect(authUrl);
+});
+
+// Logout route
+app.post('/logout', (req, res) => {
+    res.clearCookie('userTokens');
+    res.clearCookie('csrfToken');
+    res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Account information route
+app.get('/api/account', authenticateUser, (req, res) => {
+    try {
+        const oAuth2Client = getOAuth2Client();
+        oAuth2Client.setCredentials(req.userTokens);
+        
+        // Get user info from Google
+        const oauth2 = google.oauth2({ version: 'v2', auth: oAuth2Client });
+        oauth2.userinfo.get()
+            .then(response => {
+                res.json({
+                    success: true,
+                    user: {
+                        email: response.data.email,
+                        name: response.data.name,
+                        picture: response.data.picture
+                    }
+                });
+            })
+            .catch(error => {
+                logger.error('Error getting user info', {
+                    error: error.message,
+                    userId: req.userId,
+                    ip: req.ip
+                });
+                res.status(500).json({
+                    success: false,
+                    message: 'Error getting user information'
+                });
+            });
+    } catch (error) {
+        logger.error('Error in account route', {
+            error: error.message,
+            userId: req.userId,
+            ip: req.ip
+        });
+        res.status(500).json({
+            success: false,
+            message: 'Error processing request'
+        });
+    }
 });
 
 // Custom security headers
@@ -180,6 +242,7 @@ app.get('/oauth2callback', rateLimitConfig.auth, async (req, res) => {
 app.post('/add-task', 
   rateLimitConfig.tasks,
   authenticateUser,
+  csrfProtection,
   authorizeResource('tasks'),
   validateTask,
   async (req, res) => {
@@ -200,41 +263,89 @@ app.post('/add-task',
         
         try {
           const { credentials } = await oAuth2Client.refreshAccessToken();
+          tokens.access_token = credentials.access_token;
+          tokens.expiry_date = credentials.expiry_date;
+          
+          // Update cookie with new tokens
+          res.cookie('userTokens', JSON.stringify(tokens), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+          });
+          
           logger.info('Token refreshed successfully', {
             userId: req.userId,
             ip: req.ip
           });
-          oAuth2Client.setCredentials(credentials);
         } catch (refreshError) {
-          logger.error('Failed to refresh token', {
+          logger.error('Token refresh failed', {
             error: refreshError.message,
             userId: req.userId,
             ip: req.ip
           });
-          return res.json({ success: false, message: 'Authentication expired. Please sign in again.' });
+          
+          return res.status(401).json({
+            success: false,
+            message: 'Authentication expired. Please sign in again.'
+          });
         }
       }
       
       const tasks = google.tasks({ version: 'v1', auth: oAuth2Client });
-      await tasks.tasks.insert({
-        tasklist: '@default',
-        requestBody: { title: task },
+      
+      const taskList = await tasks.tasklists.list();
+      const defaultList = taskList.data.items.find(list => list.title === 'My Tasks') || taskList.data.items[0];
+      
+      if (!defaultList) {
+        logger.error('No task list found', {
+          userId: req.userId,
+          ip: req.ip
+        });
+        
+        return res.status(500).json({
+          success: false,
+          message: 'No task list available'
+        });
+      }
+      
+      const createdTask = await tasks.tasks.insert({
+        tasklist: defaultList.id,
+        resource: {
+          title: task,
+          notes: 'Created via Google Meet Tasks Bot'
+        }
       });
-
+      
       logger.info('Task created successfully', {
-        userId: req.userId,
-        taskLength: task.length,
-        ip: req.ip
-      });
-
-      res.json({ success: true, message: 'Task added successfully!' });
-    } catch (err) {
-      logger.error('Error creating task', {
-        error: err.message,
+        taskId: createdTask.data.id,
         userId: req.userId,
         ip: req.ip
       });
-      res.json({ success: false, message: `Error: ${err.message}` });
+      
+      logTaskOperation('create', {
+        taskId: createdTask.data.id,
+        userId: req.userId,
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json({
+        success: true,
+        message: 'Task created successfully',
+        taskId: createdTask.data.id
+      });
+    } catch (error) {
+      logger.error('Task creation failed', {
+        error: error.message,
+        userId: req.userId,
+        ip: req.ip
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create task'
+      });
     }
   }
 );
@@ -243,6 +354,7 @@ app.post('/add-task',
 app.post('/process-transcript', 
   rateLimitConfig.upload,
   authenticateUser,
+  csrfProtection,
   authorizeResource('files'),
   upload.single('transcript'),
   validateFileContent,
@@ -305,6 +417,7 @@ app.post('/process-transcript',
 app.post('/process-text', 
   rateLimitConfig.tasks,
   authenticateUser,
+  csrfProtection,
   authorizeResource('tasks'),
   validateTextProcessing,
   async (req, res) => {
@@ -460,19 +573,6 @@ app.post('/confirm-tasks',
     }
   }
 );
-
-// Enhanced logout with security logging
-app.post('/logout', (req, res) => {
-  logger.info('User logout', {
-    userId: req.userId || 'unknown',
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-  
-  res.clearCookie('userTokens');
-  res.clearCookie('csrfToken');
-  res.redirect('/');
-});
 
 // Enhanced account switching
 app.get('/switch-account', (req, res) => {

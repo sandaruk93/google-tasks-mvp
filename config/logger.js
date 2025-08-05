@@ -107,63 +107,65 @@ const securityLogger = winston.createLogger({
   ]
 });
 
-// Helper functions for structured logging
+// Security event logging
 const logSecurityEvent = (event, details = {}) => {
-  securityLogger.info('Security event', {
+  const securityEvent = {
     event,
     timestamp: new Date().toISOString(),
-    ip: details.ip,
-    userAgent: details.userAgent,
-    userId: details.userId,
-    action: details.action,
-    resource: details.resource,
-    success: details.success,
     ...details
-  });
+  };
+  
+  // Log to security-specific file
+  securityLogger.info(`Security event: ${event}`, securityEvent);
+  
+  // Also log to main logger for monitoring
+  logger.warn(`Security event detected: ${event}`, securityEvent);
+  
+  // For critical security events, also log to error level
+  const criticalEvents = ['authentication_failure', 'csrf_attempt', 'xss_attempt', 'file_upload_violation'];
+  if (criticalEvents.includes(event)) {
+    logger.error(`Critical security event: ${event}`, securityEvent);
+  }
 };
 
+// Authentication logging
 const logAuthentication = (action, details = {}) => {
-  securityLogger.info('Authentication event', {
-    event: 'authentication',
+  const authEvent = {
     action,
     timestamp: new Date().toISOString(),
-    ip: details.ip,
-    userAgent: details.userAgent,
-    success: details.success,
-    failureReason: details.failureReason,
     ...details
-  });
+  };
+  
+  if (action === 'failed') {
+    logSecurityEvent('authentication_failure', authEvent);
+  } else {
+    securityLogger.info(`Authentication ${action}`, authEvent);
+  }
 };
 
+// File upload security logging
 const logFileUpload = (details = {}) => {
-  securityLogger.info('File upload event', {
-    event: 'file_upload',
+  const uploadEvent = {
     timestamp: new Date().toISOString(),
-    ip: details.ip,
-    userAgent: details.userAgent,
-    userId: details.userId,
-    fileName: details.fileName,
-    fileSize: details.fileSize,
-    mimeType: details.mimeType,
-    success: details.success,
-    failureReason: details.failureReason,
     ...details
-  });
+  };
+  
+  if (details.violation) {
+    logSecurityEvent('file_upload_violation', uploadEvent);
+  } else {
+    securityLogger.info('File upload processed', uploadEvent);
+  }
 };
 
+// Task operation logging
 const logTaskOperation = (operation, details = {}) => {
-  securityLogger.info('Task operation event', {
-    event: 'task_operation',
+  const taskEvent = {
     operation,
     timestamp: new Date().toISOString(),
-    ip: details.ip,
-    userAgent: details.userAgent,
-    userId: details.userId,
-    taskCount: details.taskCount,
-    success: details.success,
-    failureReason: details.failureReason,
     ...details
-  });
+  };
+  
+  securityLogger.info(`Task operation: ${operation}`, taskEvent);
 };
 
 module.exports = {
