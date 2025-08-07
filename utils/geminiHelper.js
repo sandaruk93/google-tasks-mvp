@@ -110,6 +110,9 @@ Meeting transcript: ${text}`;
       
       let actionItems = JSON.parse(cleanedText);
       
+      // Debug: Log the raw parsed response
+      console.log('Raw parsed action items:', JSON.stringify(actionItems, null, 2));
+      
       // Ensure it's an array
       if (!Array.isArray(actionItems)) {
         console.error('Gemini response is not an array:', actionItems);
@@ -141,13 +144,15 @@ Meeting transcript: ${text}`;
             deadlineText: null
           };
         } else {
-          return {
+          const processedItem = {
             task: item.task.trim(),
             assignee: item.assignee || 'Unassigned',
             assigneeReason: item.assigneeReason || 'no clear assignee mentioned',
             deadline: item.deadline || null,
             deadlineText: item.deadlineText || null
           };
+          console.log('Processed item:', processedItem);
+          return processedItem;
         }
       });
       
@@ -184,6 +189,8 @@ Meeting transcript: ${text}`;
           if (task.length > 5 && task.length < 300) {
             actionItems.push({
               task: task,
+              assignee: 'Unassigned',
+              assigneeReason: 'regex fallback - no attendee information available',
               deadline: null,
               deadlineText: null
             });
