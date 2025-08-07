@@ -12,14 +12,46 @@ class GeminiHelper {
     try {
       console.log(`Attempting Gemini API call (attempt ${retryCount + 1}/${this.maxRetries + 1})`);
       
-      const prompt = 'Extract action items and tasks from the following meeting transcript. ' +
-        'Focus on actionable items that require follow-up or completion. ' +
-        'Return ONLY a JSON array of objects, where each object has: ' +
-        '- "task": a clear, concise task description ' +
-        '- "deadline": the deadline in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) if mentioned, or null if no deadline ' +
-        '- "deadlineText": the original deadline text as mentioned in the transcript (e.g., "by Friday", "tomorrow", "next week") ' +
-        'Example output format: [{"task": "Review the quarterly budget", "deadline": "2024-01-15T17:00:00", "deadlineText": "by Friday"}, {"task": "Schedule follow-up meeting", "deadline": null, "deadlineText": null}] ' +
-        'Meeting transcript: ' + text;
+      const prompt = `Analyze the following meeting transcript to extract action items and identify task assignments.
+
+TASK: Extract action items and assign them to the most appropriate meeting attendee based on:
+1. Who is mentioned in relation to the task
+2. Who has the expertise or responsibility for the task
+3. Who volunteered or was assigned the task
+4. Context clues about who should handle the task
+
+INSTRUCTIONS:
+- First, identify all meeting attendees mentioned in the transcript
+- For each action item, determine the most appropriate assignee
+- If no clear assignee is found, mark as "Unassigned"
+- Consider context, responsibilities, and explicit assignments
+
+Return ONLY a JSON array of objects, where each object has:
+- "task": a clear, concise task description
+- "assignee": the name of the person assigned to the task (or "Unassigned" if unclear)
+- "assigneeReason": brief explanation of why this person was assigned (e.g., "mentioned in relation to task", "has expertise in area", "volunteered")
+- "deadline": the deadline in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) if mentioned, or null if no deadline
+- "deadlineText": the original deadline text as mentioned in the transcript (e.g., "by Friday", "tomorrow", "next week")
+
+Example output format:
+[
+  {
+    "task": "Review the quarterly budget",
+    "assignee": "Sarah Johnson",
+    "assigneeReason": "mentioned as finance lead",
+    "deadline": "2024-01-15T17:00:00",
+    "deadlineText": "by Friday"
+  },
+  {
+    "task": "Schedule follow-up meeting",
+    "assignee": "Unassigned",
+    "assigneeReason": "no clear assignee mentioned",
+    "deadline": null,
+    "deadlineText": null
+  }
+]
+
+Meeting transcript: ${text}`;
 
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
@@ -40,8 +72,8 @@ class GeminiHelper {
       }
       
       // If all retries failed or it's a non-retryable error
-      console.error('All Gemini API attempts failed, falling back to regex extraction');
-      return this.extractActionItemsFallback(text);
+      console.error('All Gemini API attempts failed, returning empty array');
+      return [];
     }
   }
 
@@ -99,29 +131,33 @@ class GeminiHelper {
         }
         return false;
       }).map(item => {
-        // Convert to consistent object format
+        // Convert to consistent object format with assignee information
         if (typeof item === 'string') {
           return {
             task: item.trim(),
+            assignee: 'Unassigned',
+            assigneeReason: 'legacy format - no assignee information',
             deadline: null,
             deadlineText: null
           };
         } else {
           return {
             task: item.task.trim(),
+            assignee: item.assignee || 'Unassigned',
+            assigneeReason: item.assigneeReason || 'no clear assignee mentioned',
             deadline: item.deadline || null,
             deadlineText: item.deadlineText || null
           };
         }
       });
       
-      console.log('Successfully extracted action items:', actionItems);
+      console.log('Successfully extracted action items with assignments:', actionItems);
       return actionItems;
       
     } catch (parseError) {
       console.error('Error parsing Gemini response:', parseError);
       console.error('Raw response:', geminiResponse);
-      return this.extractActionItemsFallback(text);
+      return [];
     }
   }
 

@@ -246,7 +246,7 @@ app.post('/add-task',
   authorizeResource('tasks'),
   validateTask,
   async (req, res) => {
-    const { task } = req.body;
+    const { task, assignee, assigneeReason, deadlineText } = req.body;
     
     try {
       const oAuth2Client = getOAuth2Client();
@@ -309,18 +309,32 @@ app.post('/add-task',
         });
       }
       
+      // Build notes with assignee information
+      let notes = 'Created via Google Meet Tasks Bot';
+      if (assignee && assignee !== 'Unassigned') {
+        notes += `\n\nAssignee: ${assignee}`;
+        if (assigneeReason) {
+          notes += `\nReason: ${assigneeReason}`;
+        }
+      }
+      if (deadlineText) {
+        notes += `\n\nDeadline: ${deadlineText}`;
+      }
+      
       const createdTask = await tasks.tasks.insert({
         tasklist: defaultList.id,
         resource: {
           title: task,
-          notes: 'Created via Google Meet Tasks Bot'
+          notes: notes
         }
       });
       
       logger.info('Task created successfully', {
         taskId: createdTask.data.id,
         userId: req.userId,
-        ip: req.ip
+        ip: req.ip,
+        assignee: assignee || 'Unassigned',
+        hasDeadline: !!deadlineText
       });
       
       logTaskOperation('create', {
